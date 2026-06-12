@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const entities = sqliteTable("entities", {
 	id: text("id").primaryKey(),
@@ -16,7 +16,9 @@ export const components = sqliteTable("components", {
 	authority: text("authority", { enum: ["external", "internal"] }).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-});
+}, (t) => [
+	uniqueIndex("components_entity_type_idx").on(t.entityId, t.type),
+]);
 
 // append-only log of all component mutations
 export const changeLog = sqliteTable("change_log", {

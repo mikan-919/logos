@@ -23,6 +23,21 @@
         "drizzle-kit": "^0.31.10",
       },
     },
+    "packages/rotax": {
+      "name": "@logos/rotax",
+      "version": "0.1.0",
+      "dependencies": {
+        "@logos/core": "workspace:*",
+        "@logos/velt": "workspace:*",
+      },
+    },
+    "packages/velt": {
+      "name": "@logos/velt",
+      "version": "0.1.0",
+      "dependencies": {
+        "@logos/core": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
@@ -84,6 +99,10 @@
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
     "@logos/core": ["@logos/core@workspace:packages/core"],
+
+    "@logos/rotax": ["@logos/rotax@workspace:packages/rotax"],
+
+    "@logos/velt": ["@logos/velt@workspace:packages/velt"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 

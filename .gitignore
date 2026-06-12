@@ -2,3 +2,4 @@ repomix-output.md
 node_modules
 .env.*
 !.env.example
+*.db
