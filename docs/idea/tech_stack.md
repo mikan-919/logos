@@ -4,11 +4,11 @@
 - **Runtime:** Bun
 - **API:** REST
 
-## Interface
+## レイヤー（System）
 - **言語:** TypeScript / JavaScript
-- **配布:** URL または パッケージレジストリ
-- **実行:** Bun Worker上でキャッシュ・実行される（Logosのプロセスから分離）
+- **配布:** URL またはパッケージレジストリ
+- **実行:** Bun Worker 上でキャッシュ・実行される（Logos プロセスから分離）
 
 ## ストレージ
-- DB Adapterによる抽象化
-- クラウドDBまたはself-hosted（Supabaseライク）の両方に対応
+- DB Adapter による抽象化
+- クラウド DB または self-hosted（Supabase ライク）の両方に対応
