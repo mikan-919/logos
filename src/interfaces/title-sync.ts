@@ -1,53 +1,48 @@
 // TitleSyncIntegration — InterfaceをまたぐIntegration（ADR-0001）。
-// Change<GithubIssue> / Change<LinearIssue> および外部 Event を購読し、
-// 接地した GithubIssue と LinearIssue の title を reconcile（収束）させる。
+// title フィールドを持つ全 Component を対象に N-way reconcile する。
 //
 // docs/idea/sync_and_conflict.md の判定:
-//   - 正規形で同値          → no-op
-//   - 片側だけ未消化(dirty) → そちらを source に相手へ反映
-//   - 両側とも未消化        → 真の並行Conflict → ユーザーに返す（自動上書きしない）
+//   - 全タイトル正規形で同値          → no-op
+//   - dirty が 1 つ                  → そこを source に全他 Component へ反映
+//   - dirty が 2 つ以上              → 真の並行Conflict → ユーザーに返す（自動上書きしない）
 
 import type { System } from "../core/system.ts";
 
-const PAIR = ["GithubIssue", "LinearIssue"] as const;
-
 export const TitleSyncIntegration: System = {
   name: "TitleSyncIntegration",
-  subscribes: [...PAIR],
+  subscribes: ["GithubIssue", "LinearIssue", "NotionPage"],
   reconcile({ engine }, entity) {
     if (entity.status === "conflict") {
       engine.log("noop", `${entity.id} is in conflict — reconcile skipped (待ち)`);
       return;
     }
-    const gh = entity.components.get("GithubIssue");
-    const ln = entity.components.get("LinearIssue");
-    if (!gh || !ln) return; // まだ接地していない（1Componentのみ）→ 何もしない
 
-    if (engine.conflict.equal(gh.fields.title, ln.fields.title)) {
-      engine.log("noop", `${entity.id} titles already aligned ("${gh.fields.title}") — no-op`);
+    const titleComps = [...entity.components.values()].filter((c) => "title" in c.fields);
+    if (titleComps.length < 2) return;
+
+    const firstTitle = titleComps[0]!.fields.title as string;
+    if (titleComps.every((c) => engine.conflict.equal(c.fields.title as string, firstTitle))) {
+      engine.log("noop", `${entity.id} titles aligned ("${firstTitle}") — no-op`);
       return;
     }
 
-    const ghDirty = engine.conflict.isDirty(entity.id, "GithubIssue");
-    const lnDirty = engine.conflict.isDirty(entity.id, "LinearIssue");
+    const dirtyComps = titleComps.filter((c) => engine.conflict.isDirty(entity.id, c.type));
 
-    if (ghDirty && lnDirty) {
+    if (dirtyComps.length > 1) {
       engine.raiseConflict(entity);
       return;
     }
+    if (dirtyComps.length === 0) return;
 
-    const [srcType, src, dstType, dst] = ghDirty
-      ? (["GithubIssue", gh, "LinearIssue", ln] as const)
-      : (["LinearIssue", ln, "GithubIssue", gh] as const);
-
-    dst.fields.title = src.fields.title;
-    engine.conflict.recordWrite(entity.id, dstType, dst.fields.title);
-    engine.conflict.clearDirty(entity.id, srcType);
-    engine.conflict.clearDirty(entity.id, dstType);
-    engine.writeBack(dstType, dst);
-    engine.log(
-      "reconcile",
-      `${entity.id}: ${srcType} -> ${dstType}, title="${src.fields.title}" を反映`,
-    );
+    const src = dirtyComps[0]!;
+    for (const dst of titleComps) {
+      if (dst.type === src.type) continue;
+      dst.fields.title = src.fields.title;
+      engine.conflict.recordWrite(entity.id, dst.type, dst.fields.title as string);
+      engine.conflict.clearDirty(entity.id, dst.type);
+      engine.writeBack(dst.type, dst);
+      engine.log("reconcile", `${entity.id}: ${src.type} -> ${dst.type}, title="${src.fields.title}" を反映`);
+    }
+    engine.conflict.clearDirty(entity.id, src.type);
   },
 };

@@ -125,28 +125,38 @@ function renderExternal() {
 function renderConcurrent() {
   const root = document.getElementById("concurrent");
   root.innerHTML = "";
-  const comps = serviceComponents();
-  const gh = comps.find((c) => c.service === "github");
-  const ln = comps.find((c) => c.service === "linear");
-  if (!gh || !ln) {
-    root.append(el("p", "hint", "github と linear が同じ Entity に接地している必要があります（先に Merge）。"));
+
+  // 2つ以上の service component が接地している Entity を探す
+  let groundedComps = null;
+  for (const e of entities) {
+    const svc = e.components.filter((c) => c.service && c.fields.externalId && "title" in c.fields);
+    if (svc.length >= 2) { groundedComps = svc; break; }
+  }
+
+  if (!groundedComps) {
+    root.append(el("p", "hint", "複数の Component が接地している Entity が必要です（先に Merge）。"));
     return;
   }
-  const ig = el("input"); ig.value = "Fix login screen";
-  const il = el("input"); il.value = "Fix auth flow";
-  for (const [svc, input] of [["github", ig], ["linear", il]]) {
+
+  const defaultTitles = ["Fix login screen", "Fix auth flow", "Update auth docs"];
+  const entries = groundedComps.map((c, i) => {
+    const input = el("input");
+    input.value = defaultTitles[i] ?? c.fields.title;
     const row = el("div", "edit-row");
-    row.append(el("span", "svc", svc));
+    row.append(el("span", "svc", c.service));
     row.append(input);
     root.append(row);
-  }
+    return { c, input };
+  });
+
   const btn = el("button", null, "同時に送信");
   btn.addEventListener("click", async () => {
     await api("POST", "/mock/edit", {
-      edits: [
-        { service: "github", externalId: gh.externalId, fields: { title: ig.value } },
-        { service: "linear", externalId: ln.externalId, fields: { title: il.value } },
-      ],
+      edits: entries.map(({ c, input }) => ({
+        service: c.service,
+        externalId: c.fields.externalId,
+        fields: { title: input.value },
+      })),
     });
     await refresh();
   });
