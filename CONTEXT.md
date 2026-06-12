@@ -8,7 +8,11 @@
 ## Component
 あるEntityの「異なる側面」を表すデータ。特定の外部サービス（GitHub Issue、Linear Issue、Notion Pageなど）との対応関係や、内部的な属性（Assign、Knowledgesなど）を表す。
 
-**制約:** 同じ型のComponentは1つのEntity内に1つのみ存在できる。
+意味的に2種類ある：
+- **表現Component** — Entityがそのサービスにおいてどういうものかを表す。Systemの変化対象になる。
+- **`Refs`** — このEntityが参照する他のEntityへの道筋。接地（存在）ではなく経路（関係）を表す。Entity間のナビゲーションを担う。
+
+**制約:** 同じ型のComponentは1つのEntity内に1つのみ存在できる。この一意性は「その型が表す視点から見て一意に定まる」という意味である。`Refs` や `Assign` のように集合を表す型は、複数の値を内包する1つのComponentとして存在する。
 
 ## Interface
 外部サービスとの連携を定義するプラグイン単位。Component型のスキーマ宣言と、Adapterを内包する。
@@ -40,3 +44,11 @@ Logosの内部変化を外部サービスや外部スクリプトに通知する
 
 ## Merge
 2つのEntityを1つに統合する操作。片方のEntityのすべてのComponentをもう片方に移し、元のEntityを削除する。両方のEntityに同じ型のComponentが存在する場合、mergeは失敗する（エラー）。
+
+Mergeは「EntityとEntityを統合する」操作であると同時に、「この2つのComponentは同じ概念の表現だ」という宣言でもある。Entityはこの宣言によって事後的に形成される。
+
+## 接地（Grounding）
+
+Logosの本質的な役割。各サービス上の表現を**概念という共通の地面に接地させる**こと。データは各サービスに分散したまま存在し、Logosは「これらは同じ概念に接地している」という宣言とその維持を担う。
+
+表現ComponentはEntityに強く接地している。`Refs` は接地ではなく、接地されたEntity同士をつなぐ道である。
