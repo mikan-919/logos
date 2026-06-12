@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Logos</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Logos</h1>
+      <p class="tag">各サービス上の表現を <em>概念</em> という共通の地面に接地させる</p>
+    </header>
+
+    <main>
+      <section id="entities-pane">
+        <div class="pane-head">
+          <h2>Entities</h2>
+          <button id="merge-btn" disabled>選択した2つを Merge</button>
+        </div>
+        <p class="hint">2 つの Entity を選ぶと Merge できます。同型 Component の衝突時は失敗します。</p>
+        <div id="entities"></div>
+      </section>
+
+      <section id="side">
+        <div class="block">
+          <h2>外部サービスで編集（webhook を擬似）</h2>
+          <p class="hint">外部側は title を小文字化して保存します（非冪等変換）。echo は正規形比較で no-op になります。</p>
+          <div id="external-edit"></div>
+        </div>
+
+        <div class="block">
+          <h2>並行編集（Conflict を誘発）</h2>
+          <p class="hint">両サービスをほぼ同時に別の値へ。両側に未消化の変更 → 真の並行 Conflict。</p>
+          <div id="concurrent"></div>
+        </div>
+
+        <div class="block">
+          <h2>Log</h2>
+          <div id="log" class="log"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
