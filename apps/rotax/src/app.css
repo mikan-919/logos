@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@layer theme {
+  :root, :host {
+    --color-black:  #000000;
+    --color-ink:    #111111;
+    --color-ash:    #252525;
+    --color-smoke:  #E2E2E2;
+    --color-cloud:  #F7F7F7;
+    --color-white:  #FFFFFF;
+
+    --color-prism:  #5570C5;
+    --color-haze:   #BEC9EA;
+    --color-depth:  #2E4296;
+
+    --color-dusk:   #909090;
+    --color-fog:    #BBBBBB;
+    --color-veil:   #F6F6F6;
+    --color-ghost:  #FEFEFE;
+    --color-tint:   #EEF0FA;
+
+    --color-main:   #7B90D2;
+
+    color-scheme: light;
+  }
+}
+
+@layer utilities {
+  .bg-black { @apply bg-[var(--color-black)] }
+  .bg-ink { @apply bg-[var(--color-ink)] }
+  .bg-ash { @apply bg-[var(--color-ash)] }
+  .bg-smoke { @apply bg-[var(--color-smoke)] }
+  .bg-cloud { @apply bg-[var(--color-cloud)] }
+  .bg-white { @apply bg-[var(--color-white)] }
+
+  .bg-dusk { @apply bg-[var(--color-dusk)] }
+  .bg-fog { @apply bg-[var(--color-fog)] }
+  .bg-veil { @apply bg-[var(--color-veil)] }
+  .bg-ghost { @apply bg-[var(--color-ghost)] }
+  .bg-tint { @apply bg-[var(--color-tint)] }
+
+  .bg-prism { @apply bg-[var(--color-prism)] }
+  .bg-haze { @apply bg-[var(--color-haze)] }
+  .bg-depth { @apply bg-[var(--color-depth)] }
+  .bg-brand { @apply bg-[var(--color-main)] }
+
+  .text-black { @apply text-[var(--color-black)] }
+  .text-ink { @apply text-[var(--color-ink)] }
+  .text-ash { @apply text-[var(--color-ash)] }
+  .text-smoke { @apply text-[var(--color-smoke)] }
+  .text-cloud { @apply text-[var(--color-cloud)] }
+  .text-white { @apply text-[var(--color-white)] }
+
+  .text-dusk { @apply text-[var(--color-dusk)] }
+  .text-fog { @apply text-[var(--color-fog)] }
+  .text-veil { @apply text-[var(--color-veil)] }
+  .text-ghost { @apply text-[var(--color-ghost)] }
+  .text-tint { @apply text-[var(--color-tint)] }
+
+  .text-prism { @apply text-[var(--color-prism)] }
+  .text-haze { @apply text-[var(--color-haze)] }
+  .text-depth { @apply text-[var(--color-depth)] }
+  .text-brand { @apply text-[var(--color-main)] }
+
+  .border-black { @apply border-[var(--color-black)] }
+  .border-ink { @apply border-[var(--color-ink)] }
+  .border-ash { @apply border-[var(--color-ash)] }
+  .border-smoke { @apply border-[var(--color-smoke)] }
+  .border-cloud { @apply border-[var(--color-cloud)] }
+  .border-white { @apply border-[var(--color-white)] }
+
+  .border-dusk { @apply border-[var(--color-dusk)] }
+  .border-fog { @apply border-[var(--color-fog)] }
+  .border-veil { @apply border-[var(--color-veil)] }
+  .border-ghost { @apply border-[var(--color-ghost)] }
+  .border-tint { @apply border-[var(--color-tint)] }
+
+  .border-prism { @apply border-[var(--color-prism)] }
+  .border-haze { @apply border-[var(--color-haze)] }
+  .border-depth { @apply border-[var(--color-depth)] }
+  .border-brand { @apply border-[var(--color-main)] }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-white);
+    color: var(--color-ash);
+    font-family: "DM Mono", monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+}

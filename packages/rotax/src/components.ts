@@ -4,5 +4,9 @@ export type Name = {
 };
 
 export type Task = {
-  status: "todo" | "done";
+  status: "todo" | "in-progress" | "done";
+};
+
+export type Schedule = {
+  date: string; // YYYY-MM-DD
 };

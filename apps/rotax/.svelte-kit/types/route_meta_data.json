@@ -1,0 +1,17 @@
+{
+	"/": [
+		"src/routes/+page.server.ts"
+	],
+	"/api/tasks": [
+		"src/routes/api/tasks/+server.ts"
+	],
+	"/api/tasks/[id]": [
+		"src/routes/api/tasks/[id]/+server.ts"
+	],
+	"/api/tasks/[id]/schedule": [
+		"src/routes/api/tasks/[id]/schedule/+server.ts"
+	],
+	"/api/tasks/[id]/status": [
+		"src/routes/api/tasks/[id]/status/+server.ts"
+	]
+}

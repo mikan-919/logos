@@ -1,0 +1,17 @@
+{
+  "name": "@logos/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "start": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.4.3",
+    "@logos/core": "workspace:*",
+    "@logos/rotax": "workspace:*",
+    "hono": "^4.7.11",
+    "zod": "^3.25.51"
+  }
+}
