@@ -11,17 +11,11 @@ const NAV_ITEMS = [
 let { children } = $props();
 </script>
 
-<div class="app">
-    <TopToolbar />
+<div class="app w-dvw h-dvh overflow-hidden">
+    <!-- <TopToolbar /> -->
   {@render children()}
-  <Toolbar items={NAV_ITEMS} activeId="rotax" />
+  <!-- <Toolbar items={NAV_ITEMS} activeId="rotax" /> -->
 </div>
 
 <style>
-  .app {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    padding-bottom: 56px;
-  }
 </style>

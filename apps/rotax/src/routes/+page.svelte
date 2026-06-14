@@ -1,349 +1,169 @@
 <script lang="ts">
-  import { flushSync } from "svelte";
-  import KanbanColumn from "$lib/components/KanbanColumn.svelte";
-  import DateColumn from "$lib/components/timeline/DateColumn.svelte";
-  import type { Task, TaskStatus, ViewMode } from "$lib/types";
+const mockHeroTask = {
+	id: "TASK-32F9",
+	title: "Implement World API",
+	time: "12:00 → 21:00",
+	description: "I have todo.",
+	todos: ["This", "Another", "other"],
+	progress: 0.3,
+};
 
-  let { data } = $props();
-  type DndTask = Task & { id: string };
+const mockPool = [
+	"AAAAAAAA",
+	"BBBBB",
+	"CCCCCC",
+	"DDDDDDDDDDD",
+	"EEEEEEEEEEE",
+	"FFFFFF",
+];
 
-  let view = $state<ViewMode>("kanban");
-  let timelineEl = $state<HTMLElement | null>(null);
+const mockTrajectory = [
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+	{ id: "TASK-98F9A", title: "Task name", todos: ["This", "Another", "other"] },
+];
 
-  // ── per-card view transition ────────────────────────────
-  // Tag only the cards currently visible in the viewport so the browser
-  // FLIPs them between kanban ↔ timeline; everything else crossfades.
-  function visibleCardIds(): string[] {
-    const ids: string[] = [];
-    document.querySelectorAll<HTMLElement>("[data-entity-id]").forEach((el) => {
-      const r = el.getBoundingClientRect();
-      const vis = r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
-      if (vis && el.dataset.entityId) ids.push(el.dataset.entityId);
-    });
-    return ids;
-  }
-  function tagCards(ids: string[]) {
-    for (const id of ids) {
-      const el = document.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(id)}"]`);
-      if (el) el.style.viewTransitionName = `card-${id}`;
-    }
-  }
-  function clearCardTags() {
-    document.querySelectorAll<HTMLElement>("[data-entity-id]").forEach((el) => {
-      el.style.viewTransitionName = "";
-    });
-  }
+const timelineNodes = [
+	{ label: "MON 09", active: false, count: 2 },
+	{ label: "TUE 10", active: false, count: 0 },
+	{ label: "WED 11", active: false, count: 4 },
+	{ label: "THU 12", active: true, count: 3 },
+	{ label: "FRI 13", active: false, count: 1 },
+	{ label: "SAT 14", active: false, count: 0 },
+	{ label: "SUN 15", active: false, count: 0 },
+];
 
-  function scrollTodayIntoView(behavior: ScrollBehavior = "auto") {
-    if (!timelineEl) return;
-    const col = timelineEl.querySelector<HTMLElement>('[data-today="true"]');
-    if (!col) return;
-    // place today ~1/3 from the left so today + upcoming days are visible
-    timelineEl.scrollTo({ left: col.offsetLeft - timelineEl.clientWidth / 3, behavior });
-  }
+const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
 
-  function switchView(next: ViewMode) {
-    if (next === view) return;
-
-    if (!("startViewTransition" in document)) {
-      flushSync(() => {
-        view = next;
-      });
-      if (next === "timeline") scrollTodayIntoView();
-      return;
-    }
-
-    const ids = visibleCardIds();
-    tagCards(ids);
-
-    const transition = (document as any).startViewTransition(() => {
-      flushSync(() => {
-        view = next;
-      });
-      if (next === "timeline") scrollTodayIntoView("auto");
-      tagCards(ids); // re-tag matching cards in the freshly rendered view
-    });
-    transition.finished.finally(() => clearCardTags());
-  }
-
-  // ── state ──────────────────────────────────────────────
-  let cols = $state<Record<TaskStatus, Task[]>>({ "todo": [], "in-progress": [], "done": [] });
-  let allTasks = $state<Task[]>([]);
-
-  function syncFromServer(ts: Task[]) {
-    allTasks = [...ts];
-    cols = {
-      "todo": ts.filter((t) => t.task.status === "todo"),
-      "in-progress": ts.filter((t) => t.task.status === "in-progress"),
-      "done": ts.filter((t) => t.task.status === "done"),
-    };
-  }
-  syncFromServer(data.tasks);
-
-  function localDate(d: Date = new Date()) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-  const today = localDate();
-  function addDays(base: string, n: number) {
-    const [y, m, d] = base.split("-").map(Number);
-    return localDate(new Date(y, m - 1, d + n));
-  }
-  const pastDates = Array.from({ length: 30 }, (_, i) => addDays(today, -(i + 1))).reverse();
-  const futureDates = Array.from({ length: 30 }, (_, i) => addDays(today, i + 1));
-  const allDates = [...pastDates, today, ...futureDates];
-  function tasksForDate(date: string) {
-    return allTasks.filter((t) => t.schedule?.date === date);
-  }
-
-  // ── kanban handlers ─────────────────────────────────────
-  const SHADOW_ID = "id:dnd-shadow-placeholder-0000";
-
-  async function handleFinalize(columnId: TaskStatus, items: DndTask[]) {
-    const real = items.filter((i) => i.id !== SHADOW_ID);
-    const moved = real.filter((t) => t.task.status !== columnId);
-    cols[columnId] = real.map(({ id: _id, ...rest }) => ({ ...rest, task: { status: columnId } } as Task));
-    if (moved.length === 0) return;
-    for (const s of Object.keys(cols) as TaskStatus[]) {
-      if (s === columnId) continue;
-      cols[s] = cols[s].filter((t) => !moved.some((m) => m.entityId === t.entityId));
-    }
-    await Promise.all(moved.map((t) =>
-      fetch(`/api/tasks/${t.entityId}/status`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: columnId }),
-      })
-    ));
-  }
-
-  async function handleAdd(columnId: TaskStatus, title: string) {
-    const res = await fetch("/api/tasks", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    const { entityId } = await res.json();
-    if (columnId !== "todo") {
-      await fetch(`/api/tasks/${entityId}/status`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: columnId }),
-      });
-    }
-    const t: Task = { entityId, name: { title }, task: { status: columnId } };
-    cols[columnId] = [...cols[columnId], t];
-    allTasks = [...allTasks, t];
-  }
-
-  async function handleStatusChange(entityId: string, status: TaskStatus) {
-    for (const s of Object.keys(cols) as TaskStatus[]) cols[s] = cols[s].filter((t) => t.entityId !== entityId);
-    const task = allTasks.find((t) => t.entityId === entityId);
-    if (task) {
-      const updated = { ...task, task: { status } };
-      cols[status] = [...cols[status], updated];
-      allTasks = allTasks.map((t) => t.entityId === entityId ? updated : t);
-    }
-    await fetch(`/api/tasks/${entityId}/status`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-  }
-
-  async function handleUpdate(entityId: string, patch: { title?: string; description?: string }) {
-    allTasks = allTasks.map((t) => t.entityId === entityId ? { ...t, name: { ...t.name, ...patch } } : t);
-    for (const s of Object.keys(cols) as TaskStatus[]) {
-      cols[s] = cols[s].map((t) => t.entityId === entityId ? { ...t, name: { ...t.name, ...patch } } : t);
-    }
-    await fetch(`/api/tasks/${entityId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-  }
-
-  async function handleDelete(entityId: string) {
-    allTasks = allTasks.filter((t) => t.entityId !== entityId);
-    for (const s of Object.keys(cols) as TaskStatus[]) cols[s] = cols[s].filter((t) => t.entityId !== entityId);
-    await fetch(`/api/tasks/${entityId}`, { method: "DELETE" });
-  }
-
-  async function handleSchedule(entityId: string, date: string) {
-    const status: TaskStatus = date < today ? "done" : date === today ? "in-progress" : "todo";
-    allTasks = allTasks.map((t) =>
-      t.entityId === entityId ? { ...t, schedule: { date }, task: { status } } : t
-    );
-    await fetch(`/api/tasks/${entityId}/schedule`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date }),
-    });
-  }
+const metaBlock = [
+	{ key: "OBJECTIVE", value: "32F9-A71C" },
+	{ key: "SESSION", value: "0xB3D9F201" },
+	{ key: "GLOBAL TIME", value: "13:49:02 UTC" },
+	{ key: "LOCAL", value: "JST +09:00" },
+	{ key: "UPTIME", value: "412:07:55" },
+	{ key: "NODE", value: "rtx-04 / eu-w1" },
+	{ key: "BUILD", value: "v0.3.1-canary" },
+	{ key: "LATENCY", value: "12ms" },
+	{ key: "IP", value: "192.0.2.144" },
+	{ key: "HASH", value: "9f3ac0e8d1" },
+];
 </script>
 
-<!-- floating toolbar -->
-<header class="top-bar">
-  <h1 class="page-title">Rotax</h1>
-  <span class="task-count">{allTasks.length}</span>
-  <div class="view-toggle">
-    <button class="toggle-btn" class:active={view === "timeline"} onclick={() => switchView("timeline")}>
-      Timeline
-    </button>
-    <button class="toggle-btn" class:active={view === "kanban"} onclick={() => switchView("kanban")}>
-      Kanban
-    </button>
-  </div>
-</header>
+<div class="w-dvw h-dvh bg-[#F7F5F1] text-[#0E0E0C] grid overflow-hidden" style="grid-template-rows: 8rem 1fr 12rem;">
 
-<main>
-  {#if view === "kanban"}
-    <div class="kanban">
-      <KanbanColumn
-        columnId="done" label="Done"
-        tasks={cols["done"]}
-        onFinalize={handleFinalize} onAdd={handleAdd}
-        onStatusChange={handleStatusChange} onUpdate={handleUpdate} onDelete={handleDelete}
-      />
-      <KanbanColumn
-        columnId="in-progress" label="In Progress"
-        tasks={cols["in-progress"]}
-        onFinalize={handleFinalize} onAdd={handleAdd}
-        onStatusChange={handleStatusChange} onUpdate={handleUpdate} onDelete={handleDelete}
-      />
-      <KanbanColumn
-        columnId="todo" label="Todo"
-        tasks={cols["todo"]}
-        onFinalize={handleFinalize} onAdd={handleAdd}
-        onStatusChange={handleStatusChange} onUpdate={handleUpdate} onDelete={handleDelete}
-      />
+  <!-- Row 1: Timeline -->
+  <div class="flex items-center justify-between px-8 border-b border-[#DCDAD3]">
+    <div class="flex items-center gap-12">
+      {#each timelineNodes as node}
+        <div class="flex flex-col items-center gap-1">
+          <div class="rounded-full transition-colors duration-[120ms]"
+            class:w-[10px]={!node.active} class:h-[10px]={!node.active} class:bg-[#C2C0B8]={!node.active}
+            class:w-[14px]={node.active} class:h-[14px]={node.active} class:bg-[#F1531F]={node.active}
+          ></div>
+          <span class="font-mono text-[10.5px] tracking-[0.08em] uppercase text-[#6E6E69]">{node.label}</span>
+          {#if node.count > 0}
+            <span class="font-mono text-[9px] tracking-[0.06em] text-[#A8A8A2]">{node.count}</span>
+          {:else}
+            <span class="font-mono text-[9px] text-[#DCDAD3]">·</span>
+          {/if}
+        </div>
+      {/each}
     </div>
-  {:else}
-    <div class="timeline" bind:this={timelineEl}>
-      <div class="date-track">
-        {#each allDates as date (date)}
-          <DateColumn
-            {date}
-            isToday={date === today}
-            isPast={date < today}
-            tasks={tasksForDate(date)}
-            onSchedule={handleSchedule}
-          />
+  </div>
+
+  <!-- Row 2: Hero Task -->
+  <div class="grid px-8 border-b border-[#DCDAD3]" style="grid-template-columns: 1fr auto; grid-template-rows: 1fr auto auto 1fr auto;">
+
+    <!-- R2C1: HAVE A NEXT label (bottom-aligned to the divider) -->
+    <div class="col-start-1 row-start-2 flex items-end">
+      <p class="font-mono text-[10.5px] tracking-[0.08em] uppercase text-[#6E6E69] m-0">
+        HAVE A NEXT &nbsp;&nbsp; {mockHeroTask.time}
+      </p>
+    </div>
+
+    <!-- R1C2: Brand labels (pinned to the top) -->
+    <div class="col-start-2 row-start-1 flex flex-col items-end justify-start gap-0.5 pt-6 pl-8">
+      {#each brandLabels as label}
+        <span class="font-mono text-[10.5px] tracking-[0.08em] text-[#6E6E69]">[{label}]</span>
+      {/each}
+    </div>
+
+    <!-- R3C1: Title + description -->
+    <div class="col-start-1 row-start-3 flex flex-col justify-start">
+      <div class="w-[55%] h-px bg-[#DCDAD3] mt-2 mb-1"></div>
+      <h1 class="font-bold text-[clamp(48px,6vw,96px)] tracking-[-0.03em] leading-[0.95] text-[#0E0E0C] mb-4"
+        style="font-family: 'Inter Tight', 'Satoshi', sans-serif;">
+        {mockHeroTask.title}
+      </h1>
+      <div class="text-[14px] leading-[1.55] text-[#3A3A37]">
+        <p class="m-0">{mockHeroTask.description}</p>
+        {#each mockHeroTask.todos as todo}
+          <p class="m-0">- {todo}</p>
         {/each}
       </div>
     </div>
-  {/if}
-</main>
 
-{#if view === "timeline"}
-  <button class="today-fab" onclick={() => scrollTodayIntoView("smooth")}>Today</button>
-{/if}
+    <!-- R3C2: hairline (top, aligned with HAVE A NEXT bottom) + Meta -->
+    <div class="col-start-2 row-start-3 flex flex-col gap-3 pl-8">
+      <div class="w-full h-px bg-[#DCDAD3]"></div>
+      <div class="flex flex-col gap-0.5">
+        {#each metaBlock as row}
+          <div class="flex gap-2">
+            <span class="font-mono text-[8.5px] tracking-[0.08em] uppercase text-[#C7C5BE] min-w-[80px]">{row.key}</span>
+            <span class="font-mono text-[8.5px] tracking-[0.04em] text-[#B0AEA7]">{row.value}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
 
-<style>
-  /* floating toolbar */
-  .top-bar {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 24px;
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--color-smoke);
-    z-index: 50;
-  }
+    <!-- R5: Progress bar -->
+    <div class="col-span-2 row-start-5 flex items-center gap-4 pb-6">
+      <div class="relative flex-1 h-px bg-[#C2C0B8]">
+        <div class="absolute left-0 top-0 h-px bg-[#F1531F]" style="width: {mockHeroTask.progress * 100}%"></div>
+      </div>
+      <span class="font-mono text-[12px] text-[#6E6E69]">↗</span>
+    </div>
+  </div>
 
-  .page-title {
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 26px;
-    font-weight: 400;
-    letter-spacing: 0.04em;
-    color: var(--color-ink);
-    margin: 0;
-    line-height: 1;
-  }
+  <!-- Row 3: Bottom -->
+  <div class="grid" style="grid-template-columns: 280px 1fr;">
 
-  .task-count {
-    font-family: "DM Mono", monospace;
-    font-size: 10px;
-    color: var(--color-fog);
-    background: var(--color-cloud);
-    border: 1px solid var(--color-smoke);
-    border-radius: 10px;
-    padding: 2px 8px;
-  }
+    <!-- Task Pool -->
+    <div class="flex items-start gap-4 px-6 py-6 border-r border-[#DCDAD3]">
+      <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2] shrink-0"
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">TASK POOL</span>
+      <div class="flex flex-col gap-1">
+        {#each mockPool as item}
+          <p class="text-[14px] italic text-[#3A3A37] m-0">- {item}</p>
+        {/each}
+      </div>
+    </div>
 
-  .view-toggle {
-    margin-left: auto;
-    display: flex;
-    background: var(--color-cloud);
-    border: 1px solid var(--color-smoke);
-    border-radius: 6px;
-    padding: 3px;
-    gap: 2px;
-  }
+    <!-- Trajectory -->
+    <div class="flex items-start gap-6 px-8 py-6 min-w-0 overflow-hidden">
+      <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2] shrink-0"
+        style="writing-mode: vertical-rl; transform: rotate(180deg);">TRAJECTORY</span>
+      <div class="flex overflow-x-auto gap-0 min-w-0 flex-1">
+        {#each mockTrajectory as card, i}
+          <div class="shrink-0 w-56 px-6" class:border-l={i > 0} class:border-[#DCDAD3]={i > 0} class:pl-6={i > 0} class:pl-0={i === 0}>
+            <span class="block font-mono text-[9px] tracking-[0.08em] uppercase text-[#A8A8A2] mb-1">{card.id}</span>
+            <h2 class="text-[22px] font-semibold tracking-[-0.01em] text-[#0E0E0C] m-0 mb-2"
+              style="font-family: 'Inter Tight', 'Satoshi', sans-serif;">{card.title}</h2>
+            <div class="text-[12px] leading-[1.5] text-[#3A3A37]">
+              <p class="m-0">Descriptions</p>
+              <p class="m-0">I have todo.</p>
+              {#each card.todos as todo}
+                <p class="m-0">- {todo}</p>
+              {/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
 
-  .toggle-btn {
-    font-family: "DM Mono", monospace;
-    font-size: 10px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 4px 14px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--color-dusk);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .toggle-btn.active {
-    background: var(--color-white);
-    color: var(--color-ash);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  }
-
-  /* layout */
-  main {
-    position: fixed;
-    top: 48px; bottom: 56px; left: 0; right: 0;
-  }
-
-  /* kanban: three equal columns */
-  .kanban {
-    display: flex;
-    height: 100%;
-    gap: 16px;
-    padding: 16px;
-  }
-
-  /* timeline: one continuous horizontal scroll */
-  .timeline {
-    height: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-  .date-track {
-    display: flex;
-    height: 100%;
-  }
-
-  /* floating "jump to today" button */
-  .today-fab {
-    position: fixed;
-    bottom: 72px;
-    right: 24px;
-    z-index: 60;
-    font-family: "DM Mono", monospace;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-white);
-    background: var(--color-prism);
-    border: none;
-    border-radius: 999px;
-    padding: 8px 18px;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-    transition: background 0.15s;
-  }
-  .today-fab:hover {
-    background: var(--color-depth);
-  }
-</style>
+  </div>
+</div>

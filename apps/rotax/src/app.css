@@ -1,7 +1,42 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @layer theme {
   :root, :host {
+    /* Monochrome Grid — Design System tokens */
+    --paper: #F7F5F1;
+    --paper-pure: #FFFFFF;
+    --ink: #0E0E0C;
+    --ink-700: #3A3A37;
+    --ink-500: #6E6E69;
+    --ink-300: #A8A8A2;
+    --line: #DCDAD3;
+    --line-strong: #C2C0B8;
+    --surface-dark: #0E0E0C;
+    --surface-dark-2: #1A1A18;
+    --accent: #F1531F;
+    --accent-hover: #D8430F;
+    --accent-soft: #FBE2D6;
+    --accent-ink: #FFFFFF;
+    --positive: #2E6F4E;
+    --warning: #B7791F;
+    --danger: #C2331B;
+
+    --font-display: "Inter Tight", "Satoshi", sans-serif;
+    --font-text: "Inter", "Satoshi", sans-serif;
+    --font-mono: "JetBrains Mono", "IBM Plex Mono", monospace;
+
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+
+    --radius-sm: 8px; --radius-md: 16px; --radius-lg: 24px; --radius-full: 999px;
+
+    --border-hairline: 1px solid var(--line);
+    --border-strong: 1px solid var(--line-strong);
+
+    --ease: cubic-bezier(.2,.0,.0,1);
+    --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 360ms;
+
     --color-black:  #000000;
     --color-ink:    #111111;
     --color-ash:    #252525;
