@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createDb } from "@logos/core/src/db";
 import { createWorld } from "@logos/core/src/world";
-import { createRotax } from "@logos/rotax";
-import { createRotaxRouter } from "./rotax";
+import { createRotax, createRotaxRouter } from "@logos/rotax";
 
 const db = createDb();
 const world = createWorld(db);

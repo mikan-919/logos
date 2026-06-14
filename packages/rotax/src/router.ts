@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import type { Rotax } from "@logos/rotax";
+import type { Rotax } from "./index";
 
 const nameSchema = z.object({
   title: z.string().min(1),

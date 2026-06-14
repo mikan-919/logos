@@ -67,3 +67,6 @@ export function createRotax(world: World) {
 }
 
 export type Rotax = ReturnType<typeof createRotax>;
+
+export { createRotaxRouter } from "./router";
+export type { RotaxRouter } from "./router";
