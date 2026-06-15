@@ -1,5 +1,20 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+Antique:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* UDEV Gothic NF (JetBrains Mono + BIZ UD Gothic), self-hosted from static/fonts.
+   v2.2.0 — https://github.com/yuru7/udev-gothic */
+@font-face {
+  font-family: "UDEV Gothic";
+  src: url("/fonts/UDEVGothicNF-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Zen Kaku Gothic Antique", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+}
 
 @layer theme {
   :root, :host {
@@ -22,9 +37,9 @@
     --warning: #B7791F;
     --danger: #C2331B;
 
-    --font-display: "Inter Tight", "Satoshi", sans-serif;
-    --font-text: "Inter", "Satoshi", sans-serif;
-    --font-mono: "JetBrains Mono", "IBM Plex Mono", monospace;
+    --font-display: "Zen Kaku Gothic Antique", sans-serif;
+    --font-text: "Zen Kaku Gothic Antique", sans-serif;
+    --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", monospace;
 
     --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
     --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
@@ -125,7 +140,7 @@
     margin: 0;
     background: var(--color-white);
     color: var(--color-ash);
-    font-family: "DM Mono", monospace;
+    font-family: var(--font-text);
     -webkit-font-smoothing: antialiased;
   }
 }
