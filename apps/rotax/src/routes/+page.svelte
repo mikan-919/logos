@@ -22,7 +22,11 @@ let tasks = $state<Task[]>([
 		id: "TASK-1A2B",
 		title: "Setup repo",
 		description: "Bootstrap the Bun monorepo and CI.",
-		todos: ["Init Bun workspaces", "Biome + tsconfig presets", "GitHub Actions pipeline"],
+		todos: [
+			"Init Bun workspaces",
+			"Biome + tsconfig presets",
+			"GitHub Actions pipeline",
+		],
 		start: 7,
 		end: 8.5,
 		state: "done",
@@ -31,7 +35,11 @@ let tasks = $state<Task[]>([
 		id: "TASK-3C4D",
 		title: "Schema draft",
 		description: "Model the persistence layer for entities and components.",
-		todos: ["Entity / Component tables", "Migration 0001", "Index hot query paths"],
+		todos: [
+			"Entity / Component tables",
+			"Migration 0001",
+			"Index hot query paths",
+		],
 		start: 8.5,
 		end: 10,
 		state: "done",
@@ -49,7 +57,11 @@ let tasks = $state<Task[]>([
 		id: "TASK-7G8H",
 		title: "Router wiring",
 		description: "Stand up the HTTP router and middleware stack.",
-		todos: ["Mount route tree", "Error boundary middleware", "Structured request logging"],
+		todos: [
+			"Mount route tree",
+			"Error boundary middleware",
+			"Structured request logging",
+		],
 		start: 11,
 		end: 12,
 		state: "done",
@@ -65,15 +77,19 @@ let tasks = $state<Task[]>([
 			"Cursor-based pagination",
 			"Integration tests against seed data",
 		],
-		start: 12,
-		end: 21,
-		state: "active",
+		start: 16,
+		end: 17,
+		state: "upcoming",
 	},
 	{
 		id: "TASK-A1B2",
 		title: "Velt sync",
 		description: "Stream world deltas to clients in real time.",
-		todos: ["Open WebSocket channel", "Diff / patch protocol", "Reconnect with backoff"],
+		todos: [
+			"Open WebSocket channel",
+			"Diff / patch protocol",
+			"Reconnect with backoff",
+		],
 		start: 21,
 		end: 22,
 		state: "upcoming",
@@ -82,7 +98,11 @@ let tasks = $state<Task[]>([
 		id: "TASK-C3D4",
 		title: "UI polish",
 		description: "Tighten the dashboard before the demo.",
-		todos: ["Timeline hover states", "Empty / loading states", "Keyboard shortcuts"],
+		todos: [
+			"Timeline hover states",
+			"Empty / loading states",
+			"Keyboard shortcuts",
+		],
 		start: 22,
 		end: 23,
 		state: "upcoming",
@@ -91,7 +111,11 @@ let tasks = $state<Task[]>([
 		id: "TASK-E5F6",
 		title: "Zestium hook",
 		description: "Notify Zestium when a run completes.",
-		todos: ["Register outbound webhook", "Sign payloads (HMAC)", "Retry queue on failure"],
+		todos: [
+			"Register outbound webhook",
+			"Sign payloads (HMAC)",
+			"Retry queue on failure",
+		],
 		start: 23,
 		end: 24,
 		state: "upcoming",
@@ -156,13 +180,19 @@ let tasks = $state<Task[]>([
 // Every panel reads from one of these; none of them holds its own copy.
 const scheduled = $derived(
 	tasks
-		.filter((t): t is Task & { start: number; end: number } => t.start !== null && t.end !== null)
+		.filter(
+			(t): t is Task & { start: number; end: number } =>
+				t.start !== null && t.end !== null,
+		)
 		.sort((a, b) => a.start - b.start),
 );
 const daySpans = $derived(scheduled);
 // Past lane: everything already behind us on the timeline, done or not.
 const trajectoryPast = $derived(scheduled.filter((t) => t.end <= nowHour));
-const trajectoryUpcoming = $derived(tasks.filter((t) => t.state === "upcoming"));
+// Upcoming lane also surfaces the running task, flagged for special display.
+const trajectoryUpcoming = $derived(
+	scheduled.filter((t) => t.state === "active" || t.state === "upcoming"),
+);
 const backlog = $derived(tasks.filter((t) => t.state === "backlog"));
 const activeTask = $derived(tasks.find((t) => t.state === "active") ?? null);
 
@@ -174,22 +204,39 @@ let now = $state(new Date());
 $effect(() => {
 	const id = setInterval(() => {
 		now = new Date();
-	}, 1000);
+	}, 250);
 	return () => clearInterval(id);
 });
 
 // Current time as a fractional hour (0–24) on the day axis.
-const nowHour = $derived(now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600);
+const nowHour = $derived(
+	now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600,
+);
 const nowOnAxis = $derived(nowHour >= DAY_START && nowHour <= DAY_END);
 
 // The Now marker only lights up (orange) while we're inside the active task's
 // scheduled window; in the gaps between tasks it goes quiet/grey.
 const onActiveTask = $derived(
-	activeTask !== null && nowHour >= activeTask.start! && nowHour < activeTask.end!,
+	activeTask !== null &&
+		nowHour >= activeTask.start! &&
+		nowHour < activeTask.end!,
 );
 
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const MONTHS = [
+	"JAN",
+	"FEB",
+	"MAR",
+	"APR",
+	"MAY",
+	"JUN",
+	"JUL",
+	"AUG",
+	"SEP",
+	"OCT",
+	"NOV",
+	"DEC",
+];
 const dateLabel = $derived(
 	`${WEEKDAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()} · JST`,
 );
@@ -209,53 +256,226 @@ const hms = (h: number) => {
 	return `${p(hr)}:${p(m)}:${p(s)}`;
 };
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+// MM:SS — for the pomodoro countdown.
+const mmss = (sec: number) => {
+	const s = Math.max(0, Math.round(sec));
+	return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+};
+
+// ---- Pomodoro timer --------------------------------------------------------
+// The bottom progress bar is one pomodoro: 0–100% over a focus block, then a
+// break, repeating. Every few focus sessions the short break becomes a long one.
+const FOCUS_SEC = 15; // dummy: 15 min focus + 5 min break
+const BREAK_SEC = 5;
+const LONG_BREAK_SEC = 15;
+const SESSIONS_BEFORE_LONG = 4;
+const SESSION_TARGET = 8;
+
+let running = $state(true);
+let phase = $state<"focus" | "break">("focus");
+let pomoElapsed = $state(0); // seconds into the current phase
+let sessionsDone = $state(0);
+// Bar positions (%) where a focus session actually completed on the active task.
+let pomoHistory = $state<number[]>([]);
+
+const onBreak = $derived(phase === "break");
+const phaseLength = $derived(
+	phase === "focus"
+		? FOCUS_SEC
+		: sessionsDone % SESSIONS_BEFORE_LONG === 0
+			? LONG_BREAK_SEC
+			: BREAK_SEC,
+);
+const pomoRemaining = $derived(Math.max(0, phaseLength - pomoElapsed));
+
+// Advance once a second while a task is actively running (paused = frozen).
+$effect(() => {
+	const id = setInterval(() => {
+		if (!running || !activeTask) return;
+		if (pomoElapsed + 1 >= phaseLength) {
+			if (phase === "focus") {
+				sessionsDone += 1;
+				if (activeTask) {
+					const dur = activeTask.end! - activeTask.start!;
+					pomoHistory.push(clamp01((nowHour - activeTask.start!) / dur) * 100);
+				}
+				phase = "break";
+			} else {
+				phase = "focus";
+			}
+			pomoElapsed = 0;
+		} else {
+			pomoElapsed += 1;
+		}
+	}, 1000);
+	return () => clearInterval(id);
+});
+
+function togglePause() {
+	running = !running;
+}
+
+// Promote a task to active. Only one task runs at a time, so any current active
+// task drops back to upcoming. Starting resets the pomodoro to a fresh focus block.
+function startTask(task: Task) {
+	for (const t of tasks) if (t.state === "active") t.state = "upcoming";
+	// Starting reschedules the task to begin now, keeping its planned duration,
+	// so the timeline and readouts line up with when it actually started.
+	const dur = task.start !== null && task.end !== null ? task.end - task.start : 1;
+	task.start = nowHour;
+	task.end = Math.min(DAY_END, nowHour + dur);
+	task.state = "active";
+	running = true;
+	phase = "focus";
+	pomoElapsed = 0;
+	pomoHistory = [];
+	reschedTask = null;
+	pinned = null;
+}
+
+function completeActive() {
+	const a = tasks.find((t) => t.state === "active");
+	if (a) a.state = "done";
+}
+
+// Hold-to-confirm: the action only fires after the pointer is held down for the
+// full duration, with a sweeping fill as feedback. Releasing early cancels.
+function hold(node: HTMLElement, params: { onhold: () => void; duration?: number }) {
+	let onhold = params.onhold;
+	const duration = params.duration ?? 600;
+
+	const fill = document.createElement("span");
+	fill.style.cssText =
+		"position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.3);pointer-events:none;border-radius:inherit;";
+	node.style.position = "relative";
+	node.style.overflow = "hidden";
+	node.appendChild(fill);
+
+	let raf = 0;
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	let startedAt = 0;
+
+	function tick(t: number) {
+		const p = Math.min(1, (t - startedAt) / duration);
+		fill.style.width = `${p * 100}%`;
+		if (p < 1) raf = requestAnimationFrame(tick);
+	}
+	function down(e: PointerEvent) {
+		e.preventDefault();
+		startedAt = performance.now();
+		raf = requestAnimationFrame(tick);
+		timer = setTimeout(() => {
+			cancel();
+			onhold();
+		}, duration);
+	}
+	function cancel() {
+		if (timer) clearTimeout(timer);
+		timer = null;
+		cancelAnimationFrame(raf);
+		fill.style.width = "0";
+	}
+
+	node.addEventListener("pointerdown", down);
+	node.addEventListener("pointerup", cancel);
+	node.addEventListener("pointerleave", cancel);
+	node.addEventListener("pointercancel", cancel);
+
+	return {
+		update(p: { onhold: () => void; duration?: number }) {
+			onhold = p.onhold;
+		},
+		destroy() {
+			cancel();
+			node.removeEventListener("pointerdown", down);
+			node.removeEventListener("pointerup", cancel);
+			node.removeEventListener("pointerleave", cancel);
+			node.removeEventListener("pointercancel", cancel);
+			fill.remove();
+		},
+	};
+}
 
 // ---- Active-task readouts --------------------------------------------------
 // The hero shows the active task; if nothing is running, it previews the next
 // upcoming one (muted, labelled UP NEXT) so the stage is never empty.
-const nextUpcoming = $derived(scheduled.find((t) => t.state === "upcoming") ?? null);
+const nextUpcoming = $derived(
+	scheduled.find((t) => t.state === "upcoming") ?? null,
+);
 const heroTask = $derived(activeTask ?? nextUpcoming);
 const heroIsUpcoming = $derived(activeTask === null && nextUpcoming !== null);
-const heroLabel = $derived(activeTask ? "IN PROGRESS" : heroIsUpcoming ? "UP NEXT" : "NO TASKS");
+const heroLabel = $derived(
+	activeTask ? "IN PROGRESS" : heroIsUpcoming ? "UP NEXT" : "NO TASKS",
+);
 const heroTime = $derived(
 	heroTask ? `${hhmm(heroTask.start!)} → ${hhmm(heroTask.end!)}` : "—",
 );
-const remainingH = $derived(activeTask ? Math.max(0, activeTask.end! - nowHour) : 0);
-const elapsedH = $derived(activeTask ? Math.max(0, nowHour - activeTask.start!) : 0);
-const heroProgress = $derived(
-	activeTask ? clamp01((nowHour - activeTask.start!) / (activeTask.end! - activeTask.start!)) : 0,
+const elapsedH = $derived(
+	activeTask ? Math.max(0, nowHour - activeTask.start!) : 0,
 );
+// The amount bar reflects how far through the active task's window we are.
+const heroProgress = $derived(
+	activeTask
+		? clamp01(
+				(nowHour - activeTask.start!) / (activeTask.end! - activeTask.start!),
+			)
+		: 0,
+);
+const elapsedPct = $derived(Math.round(heroProgress * 100));
+const heroPctExact = $derived(heroProgress * 100); // unrounded, for smooth bar width
+
+// Predicted pomodoro points: project focus-session completions from now to the
+// end of the task's window, assuming the timer keeps running (continues the
+// current cycle if active, else a fresh focus block from now).
+const pomoForecast = $derived.by(() => {
+	if (!heroTask) return [];
+	const startH = heroTask.start!;
+	const endH = heroTask.end!;
+	const dur = endH - startH;
+	if (dur <= 0) return [];
+	const F = FOCUS_SEC / 3600;
+	const B = BREAK_SEC / 3600;
+	const L = LONG_BREAK_SEC / 3600;
+
+	const marks: number[] = [];
+	let cursor = nowHour;
+	let ph: "focus" | "break" = activeTask ? phase : "focus";
+	let sess = activeTask ? sessionsDone : 0;
+	let leftInPhase = activeTask ? pomoRemaining / 3600 : F;
+
+	for (let guard = 0; guard < 128; guard++) {
+		cursor += leftInPhase;
+		if (cursor >= endH) break;
+		if (ph === "focus") {
+			marks.push(((cursor - startH) / dur) * 100); // a pomodoro completes here
+			sess += 1;
+			ph = "break";
+			leftInPhase = sess % SESSIONS_BEFORE_LONG === 0 ? L : B;
+		} else {
+			ph = "focus";
+			leftInPhase = F;
+		}
+	}
+	return marks;
+});
 
 const taskStats = $derived([
 	{ key: "ELAPSED", value: hms(elapsedH) },
 	{ key: "EST. FINISH", value: activeTask ? hhmm(activeTask.end!) : "—" },
-	{ key: "SESSION", value: "3 / 8" },
+	{ key: "SESSION", value: `${sessionsDone} / ${SESSION_TARGET}` },
 ]);
 
 const doneCount = $derived(scheduled.filter((t) => t.state === "done").length);
 const focusH = $derived(
-	scheduled.filter((t) => t.state === "done").reduce((sum, t) => sum + (t.end - t.start), 0),
+	scheduled
+		.filter((t) => t.state === "done")
+		.reduce((sum, t) => sum + (t.end - t.start), 0),
 );
 const dayStats = $derived([
 	{ key: "DONE", value: `${doneCount} / ${scheduled.length}` },
 	{ key: "FOCUS", value: hhmm(focusH) },
 	{ key: "STATUS", value: "ON TRACK", accent: true },
 ]);
-
-// ---- Timer controls --------------------------------------------------------
-let running = $state(true);
-let done = $state(false);
-
-function togglePause() {
-	running = !running;
-}
-
-function complete() {
-	done = true;
-	running = false;
-}
-
-const elapsedPct = $derived(done ? 100 : Math.round(heroProgress * 100));
 
 // ---- Detail overlay --------------------------------------------------------
 let pinned = $state<Task | null>(null);
@@ -266,6 +486,68 @@ const hoveredTask = $derived(
 );
 // A hovered backlog task previews on top; otherwise the last clicked task stays.
 const selectedCard = $derived(hoveredTask ?? pinned);
+
+// ---- Edit (modal) ----------------------------------------------------------
+let editing = $state<Task | null>(null);
+let editTitle = $state("");
+let editDescription = $state("");
+
+function openEdit(task: Task) {
+	editing = task;
+	editTitle = task.title;
+	editDescription = task.description;
+}
+function saveEdit() {
+	if (!editing) return;
+	editing.title = editTitle.trim() || editing.title;
+	editing.description = editDescription.trim();
+	editing = null;
+}
+
+// ---- Reschedule (popover) --------------------------------------------------
+let reschedTask = $state<Task | null>(null);
+let reStart = $state("09:00");
+let reEnd = $state("10:00");
+
+const toHHMM = (h: number | null, fallback: string) => {
+	if (h === null) return fallback;
+	const m = Math.round(h * 60);
+	return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+const fromHHMM = (s: string) => {
+	const [h, m] = s.split(":").map(Number);
+	return h + (m || 0) / 60;
+};
+
+function openReschedule(task: Task) {
+	reschedTask = reschedTask === task ? null : task;
+	if (reschedTask) {
+		reStart = toHHMM(task.start, "09:00");
+		reEnd = toHHMM(task.end, "10:00");
+	}
+}
+function applyReschedule() {
+	if (!reschedTask) return;
+	const s = fromHHMM(reStart);
+	const e = fromHHMM(reEnd);
+	if (e > s) {
+		reschedTask.start = s;
+		reschedTask.end = e;
+		if (reschedTask.state === "backlog") reschedTask.state = "upcoming";
+	}
+	reschedTask = null;
+}
+function unschedule(task: Task) {
+	task.start = null;
+	task.end = null;
+	task.state = "backlog";
+	reschedTask = null;
+	pinned = null;
+}
+// Do Now == Start: both reschedule the task to begin now and run it.
+function doNow(task: Task) {
+	startTask(task);
+}
 
 // Throttle backlog hover so sweeping the cursor across the list doesn't thrash
 // the overlay. The latest target wins after the cooldown.
@@ -416,17 +698,27 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
     <!-- R3C1: Title + description -->
     <div class="col-start-1 row-start-3 flex flex-col justify-start">
       <div class="w-[55%] h-px bg-[#DCDAD3] mb-2"></div>
-      <h1 class="font-bold text-[clamp(48px,6vw,96px)] tracking-[-0.03em] leading-[0.95] mb-4 transition-colors"
-        class:text-[#0E0E0C]={!heroIsUpcoming} class:text-[#B0AEA7]={heroIsUpcoming}
-        style="font-family: var(--font-display);">
-        {heroTask?.title ?? "No tasks scheduled"}
-      </h1>
-      <div class="text-[14px] leading-[1.55] transition-colors"
-        class:text-[#3A3A37]={!heroIsUpcoming} class:text-[#B0AEA7]={heroIsUpcoming}>
-        <p class="m-0">{heroTask?.description ?? ""}</p>
-        {#each heroTask?.todos ?? [] as todo}
-          <p class="m-0">- {todo}</p>
-        {/each}
+      <!-- grid-overlap so the outgoing and incoming task share one cell and
+           cross-animate: old slides up + fades, new fades in from below. -->
+      <div class="grid overflow-hidden">
+        {#key heroTask?.id}
+          <div class="col-start-1 row-start-1"
+            in:fly={{ y: 28, duration: 320, easing: cubicOut }}
+            out:fly={{ y: -28, duration: 240, easing: cubicOut }}>
+            <h1 class="font-bold text-[clamp(48px,6vw,96px)] tracking-[-0.03em] leading-[0.95] mb-4 transition-colors"
+              class:text-[#0E0E0C]={!heroIsUpcoming} class:text-[#B0AEA7]={heroIsUpcoming}
+              style="font-family: var(--font-display);">
+              {heroTask?.title ?? "No tasks scheduled"}
+            </h1>
+            <div class="text-[14px] leading-[1.55] transition-colors"
+              class:text-[#3A3A37]={!heroIsUpcoming} class:text-[#B0AEA7]={heroIsUpcoming}>
+              <p class="m-0">{heroTask?.description ?? ""}</p>
+              {#each heroTask?.todos ?? [] as todo}
+                <p class="m-0">- {todo}</p>
+              {/each}
+            </div>
+          </div>
+        {/key}
       </div>
     </div>
 
@@ -434,10 +726,26 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
     <div class="col-start-2 row-start-3 flex flex-col gap-4 pl-8 w-[220px]">
       <div class="w-full h-px bg-[#DCDAD3]"></div>
 
-      <!-- Hero metric: remaining time (scale contrast) -->
-      <div class="flex flex-col">
-        <span class="font-mono text-[9px] tracking-[0.1em] uppercase text-[#A8A8A2] mb-0.5">Remaining</span>
-        <span class="font-mono text-[32px] leading-[0.9] tracking-[-0.02em] tabular-nums text-[#0E0E0C]">{hms(remainingH)}</span>
+      <!-- Hero metric: the pomodoro timer (focal point, phase-coloured accent) -->
+      <div class="flex flex-col border-l-2 pl-4 -ml-px transition-colors"
+        class:border-[#F1531F]={activeTask && !onBreak}
+        class:border-[#2E6F4E]={activeTask && onBreak}
+        class:border-[#DCDAD3]={!activeTask}>
+        <span class="self-start inline-flex items-center gap-1.5 font-mono text-[9.5px] tracking-[0.14em] uppercase px-2.5 h-[24px] rounded-full mb-2.5 transition-colors"
+          class:bg-[#F1531F]={activeTask && !onBreak} class:text-white={!!activeTask}
+          class:bg-[#2E6F4E]={activeTask && onBreak}
+          class:bg-transparent={!activeTask} class:text-[#A8A8A2]={!activeTask}
+          class:ring-1={!activeTask} class:ring-[#DCDAD3]={!activeTask}>
+          {#if activeTask}
+            <span class="w-1.5 h-1.5 rounded-full bg-white" class:animate-pulse={running}></span>
+            {onBreak ? "Break" : "Focus"}
+          {:else}
+            Ready
+          {/if}
+        </span>
+        <span class="font-mono text-[54px] leading-[0.85] tracking-[-0.03em] tabular-nums transition-colors"
+          class:text-[#0E0E0C]={activeTask && !onBreak} class:text-[#2E6F4E]={activeTask && onBreak}
+          class:text-[#C2C0B8]={!activeTask}>{activeTask ? mmss(pomoRemaining) : "--:--"}</span>
       </div>
 
       <!-- Task stats -->
@@ -472,46 +780,50 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
 
       <!-- track -->
       <div class="relative flex-1 h-[6px] rounded-full bg-[#E6E4DD] overflow-hidden">
-        <!-- ticks decoration -->
-        <div class="absolute inset-0 flex justify-between px-[2px] pointer-events-none">
-          {#each Array(40) as _}
-            <div class="w-px h-full bg-[#D2D0C8]"></div>
+        <!-- fill -->
+        <div class="absolute left-0 top-0 h-full rounded-full bg-[#F1531F] transition-[width] duration-200 ease-linear"
+          class:opacity-40={!running} style="width: {heroPctExact}%"></div>
+        <!-- pomodoro points: predicted (hollow) on the track, recorded (solid) over the fill -->
+        <div class="absolute inset-0 pointer-events-none">
+          {#each pomoForecast as m}
+            <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-white/50" style="left: {m}%"></div>
+          {/each}
+          {#each pomoHistory as m}
+            <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-white" style="left: {m}%"></div>
           {/each}
         </div>
-        <!-- fill -->
-        <div class="absolute left-0 top-0 h-full rounded-full bg-[#F1531F] transition-[width] duration-300"
-          class:opacity-40={!running && !done} style="width: {elapsedPct}%"></div>
         <!-- moving head -->
-        {#if running && !done}
+        {#if running && activeTask}
           <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[10px] h-[10px] rounded-full bg-[#F1531F] ring-2 ring-[#F7F5F1]"
-            style="left: {elapsedPct}%"></div>
+            style="left: {heroPctExact}%"></div>
         {/if}
       </div>
 
       <!-- controls -->
       <div class="flex items-center gap-2 shrink-0">
-        <button onclick={togglePause} disabled={done}
-          class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase
-                 px-3 h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37]
-                 hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors
-                 disabled:opacity-30 disabled:hover:border-[#C2C0B8] disabled:hover:text-[#3A3A37]">
-          {#if running}
-            <span class="text-[8px]">❚❚</span> Pause
-          {:else}
-            <span class="text-[9px]">▶</span> Resume
-          {/if}
-        </button>
-        <button onclick={complete} disabled={done}
-          class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase
-                 px-3 h-8 rounded-full bg-[#F1531F] text-white
-                 hover:bg-[#D8430F] transition-colors
-                 disabled:bg-[#2E6F4E] disabled:opacity-100">
-          {#if done}
-            <span class="text-[10px]">✓</span> Done
-          {:else}
-            <span class="text-[10px]">✓</span> Complete
-          {/if}
-        </button>
+        {#if activeTask}
+          <button onclick={togglePause}
+            class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase
+                   px-3 h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37]
+                   hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">
+            {#if running}
+              <span class="text-[8px]">❚❚</span> Pause
+            {:else}
+              <span class="text-[9px]">▶</span> Resume
+            {/if}
+          </button>
+          <button use:hold={{ onhold: completeActive }}
+            class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase
+                   px-3 h-8 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors select-none touch-none">
+            <span class="text-[10px]">✓</span> Hold to Complete
+          </button>
+        {:else if heroTask}
+          <button use:hold={{ onhold: () => heroTask && startTask(heroTask) }}
+            class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase
+                   px-4 h-8 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors select-none touch-none">
+            <span class="text-[9px]">▶</span> Hold to Start
+          </button>
+        {/if}
       </div>
     </div>
   </div>
@@ -553,8 +865,16 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
               <button type="button" onclick={() => (pinned = card)}
                 class="shrink-0 w-48 px-5 text-left cursor-pointer transition-opacity hover:opacity-60"
                 class:border-l={i > 0} class:border-[#DCDAD3]={i > 0} class:pl-5={i > 0} class:pl-0={i === 0}>
-                <span class="block font-mono text-[9px] tracking-[0.08em] uppercase text-[#A8A8A2] mb-0.5">{card.id}</span>
-                <h2 class="text-[18px] font-semibold tracking-[-0.01em] text-[#0E0E0C] m-0 truncate"
+                <span class="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.08em] uppercase mb-0.5"
+                  class:text-[#F1531F]={card.state === "active"} class:text-[#A8A8A2]={card.state !== "active"}>
+                  {#if card.state === "active"}
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#F1531F] animate-pulse"></span>Now
+                  {:else}
+                    {card.id}
+                  {/if}
+                </span>
+                <h2 class="text-[18px] font-semibold tracking-[-0.01em] m-0 truncate"
+                  class:text-[#F1531F]={card.state === "active"} class:text-[#0E0E0C]={card.state !== "active"}
                   style="font-family: var(--font-display);">{card.title}</h2>
               </button>
             {/each}
@@ -606,11 +926,49 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
 
                 <!-- controls under title -->
                 <div class="flex flex-wrap items-center gap-2">
-                  <button class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors">
-                    <span class="text-[9px]">▶</span> Start
+                  <button use:hold={{ onhold: () => selectedCard && startTask(selectedCard) }}
+                    class="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors select-none touch-none">
+                    <span class="text-[9px]">▶</span> Hold to Start
                   </button>
-                  <button class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37] hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">Edit</button>
-                  <button class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37] hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">Reschedule</button>
+                  <button onclick={() => selectedCard && openEdit(selectedCard)}
+                    class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37] hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">Edit</button>
+
+                  <!-- Reschedule + popover -->
+                  <div class="relative">
+                    <button onclick={() => selectedCard && openReschedule(selectedCard)}
+                      class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border transition-colors"
+                      class:border-[#0E0E0C]={reschedTask === selectedCard}
+                      class:text-[#0E0E0C]={reschedTask === selectedCard}
+                      class:border-[#C2C0B8]={reschedTask !== selectedCard}
+                      class:text-[#3A3A37]={reschedTask !== selectedCard}>Reschedule</button>
+
+                    {#if reschedTask && reschedTask === selectedCard}
+                      <div class="absolute left-0 bottom-[calc(100%+8px)] z-40 w-60 p-4 rounded-2xl bg-[#FFFFFF] border border-[#DCDAD3] shadow-[0_8px_24px_rgba(14,14,12,.10)]"
+                        transition:fly={{ y: 6, duration: 160, easing: cubicOut }}>
+                        <div class="flex items-center gap-3 mb-3">
+                          <label class="flex flex-col gap-1 flex-1">
+                            <span class="font-mono text-[8.5px] tracking-[0.1em] uppercase text-[#A8A8A2]">Start</span>
+                            <input type="time" step="900" bind:value={reStart}
+                              class="font-mono text-[13px] tabular-nums bg-transparent border-b border-[#DCDAD3] focus:border-[#F1531F] outline-none pb-0.5" />
+                          </label>
+                          <label class="flex flex-col gap-1 flex-1">
+                            <span class="font-mono text-[8.5px] tracking-[0.1em] uppercase text-[#A8A8A2]">End</span>
+                            <input type="time" step="900" bind:value={reEnd}
+                              class="font-mono text-[13px] tabular-nums bg-transparent border-b border-[#DCDAD3] focus:border-[#F1531F] outline-none pb-0.5" />
+                          </label>
+                        </div>
+                        <button onclick={applyReschedule}
+                          class="w-full font-mono text-[10px] tracking-[0.08em] uppercase h-8 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors mb-2">Apply</button>
+                        <div class="flex gap-2">
+                          <button onclick={() => reschedTask && doNow(reschedTask)}
+                            class="flex-1 font-mono text-[10px] tracking-[0.08em] uppercase h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37] hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">Do Now</button>
+                          <button onclick={() => reschedTask && unschedule(reschedTask)}
+                            class="flex-1 font-mono text-[10px] tracking-[0.08em] uppercase h-8 rounded-full border border-[#C2C0B8] text-[#3A3A37] hover:border-[#0E0E0C] hover:text-[#0E0E0C] transition-colors">Unschedule</button>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+
                   <button class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#E0BBB2] text-[#C2331B] hover:bg-[#C2331B] hover:text-white hover:border-[#C2331B] transition-colors">Delete</button>
                 </div>
               </div>
@@ -634,6 +992,45 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
 
   </div>
 </div>
+
+<!-- Edit modal (top layer) -->
+{#if editing}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-[#0E0E0C]/20 backdrop-blur-sm px-6"
+    transition:fade={{ duration: 160 }}
+    onclick={() => (editing = null)} role="presentation">
+    <div class="w-full max-w-lg p-8 rounded-2xl bg-[#FFFFFF] border border-[#DCDAD3] shadow-[0_8px_32px_rgba(14,14,12,.16)]"
+      in:fly={{ y: 16, duration: 240, easing: cubicOut }}
+      onclick={(e) => e.stopPropagation()} role="presentation">
+      <div class="flex items-center justify-between mb-6">
+        <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2]">Edit Task · {editing.id}</span>
+        <button onclick={() => (editing = null)}
+          class="font-mono text-[10px] tracking-[0.08em] uppercase text-[#A8A8A2] hover:text-[#0E0E0C] transition-colors">✕ Close</button>
+      </div>
+
+      <label class="block mb-5">
+        <span class="block font-mono text-[8.5px] tracking-[0.1em] uppercase text-[#A8A8A2] mb-1.5">Title</span>
+        <input bind:value={editTitle}
+          class="w-full bg-transparent border-b border-[#DCDAD3] focus:border-[#F1531F] outline-none pb-1 text-[22px] tracking-[-0.01em] text-[#0E0E0C]"
+          style="font-family: var(--font-display);" />
+      </label>
+
+      <label class="block mb-7">
+        <span class="block font-mono text-[8.5px] tracking-[0.1em] uppercase text-[#A8A8A2] mb-1.5">Description</span>
+        <textarea bind:value={editDescription} rows="4"
+          class="w-full resize-none bg-transparent border border-[#DCDAD3] rounded-lg focus:border-[#F1531F] outline-none p-3 text-[13px] leading-[1.55] text-[#3A3A37]"></textarea>
+      </label>
+
+      <div class="flex justify-end gap-2">
+        <button onclick={() => (editing = null)}
+          class="font-mono text-[10px] tracking-[0.08em] uppercase px-5 h-9 rounded-full text-[#3A3A37] hover:text-[#0E0E0C] transition-colors">Cancel</button>
+        <button onclick={saveEdit}
+          class="font-mono text-[10px] tracking-[0.08em] uppercase px-5 h-9 rounded-full bg-[#F1531F] text-white hover:bg-[#D8430F] transition-colors">Save</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<svelte:window onkeydown={(e) => { if (e.key === "Escape") { editing = null; reschedTask = null; } }} />
 
 <style>
   /* Hide scrollbars while keeping scroll behaviour. */
