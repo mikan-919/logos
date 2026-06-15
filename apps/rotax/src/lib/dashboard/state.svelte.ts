@@ -2,7 +2,6 @@ import { seedTasks, type Task, type TaskState } from "./seed";
 import {
 	DAY_START,
 	DAY_END,
-	MAX_LANES,
 	FOCUS_SEC,
 	BREAK_SEC,
 	LONG_BREAK_SEC,
@@ -16,6 +15,7 @@ import {
 	mmss,
 	toHHMM,
 	fromHHMM,
+	layoutLanes,
 	type LaidSpan,
 } from "./format";
 
@@ -64,31 +64,42 @@ class DashboardState {
 	activeTask = $derived(this.tasks.find((t) => t.state === "active") ?? null);
 
 	// Lay scheduled spans into up to 3 stacked lanes (overlap = packed schedule).
-	laidSpans = $derived.by<LaidSpan[]>(() => {
-		const laneEnds: number[] = [];
-		const placed: LaidSpan[] = [];
-		for (const span of this.daySpans) {
-			let lane = laneEnds.findIndex((e) => e <= span.start + 1e-9);
-			if (lane === -1 && laneEnds.length < MAX_LANES) {
-				lane = laneEnds.length;
-				laneEnds.push(span.end);
-			} else if (lane !== -1) {
-				laneEnds[lane] = span.end;
-			}
-			placed.push({ span, lane, overlap: 0, underActive: false });
-		}
-		const act = this.daySpans.find((s) => s.state === "active") ?? null;
-		for (const p of placed) {
-			p.overlap = this.daySpans.filter(
-				(o) => o.start < p.span.end && o.end > p.span.start,
-			).length;
-			p.underActive =
-				!!act &&
-				p.span !== act &&
-				p.span.start < act.end &&
-				p.span.end > act.start;
-		}
-		return placed.filter((p) => p.lane >= 0);
+	laidSpans = $derived<LaidSpan[]>(layoutLanes(this.daySpans));
+
+	// ---- Multi-day timeline view ----------------------------------------------
+	// Toggle between the today dashboard and a vertical stack of day timelines.
+	view = $state<"today" | "timeline">("today");
+	toggleView = () => {
+		this.view = this.view === "today" ? "timeline" : "today";
+	};
+	backToToday = () => {
+		this.view = "today";
+	};
+
+	// Synthesize a handful of day rows from the existing scheduled spans — no
+	// model change, just believable filler so the timeline view has content.
+	// TODAY keeps real states; other days are deterministically shifted and
+	// recolored (past = done, future = upcoming).
+	timelineDays = $derived.by(() => {
+		const base = this.scheduled;
+		// Offsets relative to today, top → bottom (today first, then "6/15"-style rows).
+		const offsets = [0, -1, -2, 1, 2, 3];
+		return offsets.map((off, idx) => {
+			const d = new Date(this.now);
+			d.setDate(d.getDate() + off);
+			const label = off === 0 ? "TODAY" : `${d.getMonth() + 1}/${d.getDate()}`;
+			// Pick a deterministic slice of the scheduled spans for this row and
+			// shift it around so each day reads differently.
+			const shift = off === 0 ? 0 : ((idx * 1.5) % 5) - 2;
+			const slice = base.filter((_, i) => off === 0 || (i + idx) % 2 === 0);
+			const spans = slice.map((t) => {
+				const start = off === 0 ? t.start : Math.max(DAY_START, Math.min(DAY_END - 1, t.start + shift));
+				const end = off === 0 ? t.end : Math.max(start + 0.5, Math.min(DAY_END, t.end + shift));
+				const state: TaskState = off === 0 ? t.state : off < 0 ? "done" : "upcoming";
+				return { ...t, id: `${t.id}-${off}`, start, end, state };
+			});
+			return { key: `day-${off}`, label, isToday: off === 0, laid: layoutLanes(spans) };
+		});
 	});
 
 	// ---- Live clock ------------------------------------------------------------

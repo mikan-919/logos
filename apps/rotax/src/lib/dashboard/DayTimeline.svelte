@@ -1,10 +1,11 @@
 <script lang="ts">
 import { dashboard } from "$lib/dashboard/state.svelte";
 import { HOUR_TICKS, pct, fmtHour, laneTop, hhmm } from "$lib/dashboard/format";
+import { flip } from "$lib/dashboard/flip";
 </script>
 
 <!-- R1C1: Day Timeline (fills the ceiling zone) -->
-<div class="col-start-1 row-start-1 flex flex-col justify-start pt-4 pb-6 pr-8">
+<div use:flip={{ key: "daytimeline" }} class="col-start-1 row-start-1 flex flex-col justify-start pt-4 pb-6 pr-8">
   <!-- header -->
   <div class="flex items-baseline gap-3 mb-4">
     <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2]">Today</span>

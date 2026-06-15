@@ -65,6 +65,35 @@ export type LaidSpan = {
 	underActive: boolean;
 };
 
+// Pack spans into up to MAX_LANES stacked lanes (greedy by start time), then
+// annotate overlap counts and whether each span sits under the active one.
+// Shared by the today dashboard (`laidSpans`) and the multi-day timeline view.
+export function layoutLanes(
+	spans: (Task & { start: number; end: number })[],
+): LaidSpan[] {
+	const laneEnds: number[] = [];
+	const placed: LaidSpan[] = [];
+	for (const span of spans) {
+		let lane = laneEnds.findIndex((e) => e <= span.start + 1e-9);
+		if (lane === -1 && laneEnds.length < MAX_LANES) {
+			lane = laneEnds.length;
+			laneEnds.push(span.end);
+		} else if (lane !== -1) {
+			laneEnds[lane] = span.end;
+		}
+		placed.push({ span, lane, overlap: 0, underActive: false });
+	}
+	const act = spans.find((s) => s.state === "active") ?? null;
+	for (const p of placed) {
+		p.overlap = spans.filter(
+			(o) => o.start < p.span.end && o.end > p.span.start,
+		).length;
+		p.underActive =
+			!!act && p.span !== act && p.span.start < act.end && p.span.end > act.start;
+	}
+	return placed.filter((p) => p.lane >= 0);
+}
+
 // Hold-to-confirm: the action only fires after the pointer is held down for the
 // full duration, with a sweeping fill as feedback. Releasing early cancels.
 export function hold(node: HTMLElement, params: { onhold: () => void; duration?: number }) {

@@ -3,10 +3,11 @@ import { fade, fly } from "svelte/transition";
 import { cubicOut } from "svelte/easing";
 import { dashboard } from "$lib/dashboard/state.svelte";
 import { hold } from "$lib/dashboard/format";
+import { flip } from "$lib/dashboard/flip";
 </script>
 
-<!-- Trajectory -->
-<div class="relative flex items-stretch gap-6 px-8 py-5 min-w-0">
+<!-- Trajectory (shared element: morphs between today / timeline layouts) -->
+<div use:flip={{ key: "trajectory" }} class="relative flex items-stretch gap-6 px-8 py-5 min-w-0">
   <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2] shrink-0 self-end"
     style="writing-mode: vertical-rl; transform: rotate(180deg);">TRAJECTORY</span>
   <div class="flex flex-col min-w-0 flex-1 h-full gap-7">
