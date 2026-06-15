@@ -144,3 +144,12 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Hide scrollbars while keeping scroll behaviour (used by TaskPool, Trajectory, detail overlay). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
