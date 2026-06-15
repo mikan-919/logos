@@ -196,6 +196,44 @@ const trajectoryUpcoming = $derived(
 const backlog = $derived(tasks.filter((t) => t.state === "backlog"));
 const activeTask = $derived(tasks.find((t) => t.state === "active") ?? null);
 
+// Lay scheduled spans into up to 3 stacked lanes (overlap = packed schedule).
+// Greedy: each span takes the first lane whose previous task has already ended.
+// Also tag how many spans are concurrent (for the ×N hover) and whether the
+// span sits under the active/orange task (where hover labels are suppressed).
+const MAX_LANES = 3;
+type LaidSpan = {
+	span: (typeof daySpans)[number];
+	lane: number;
+	overlap: number;
+	underActive: boolean;
+};
+const laidSpans = $derived.by<LaidSpan[]>(() => {
+	const laneEnds: number[] = [];
+	const placed: LaidSpan[] = [];
+	for (const span of daySpans) {
+		let lane = laneEnds.findIndex((e) => e <= span.start + 1e-9);
+		if (lane === -1 && laneEnds.length < MAX_LANES) {
+			lane = laneEnds.length;
+			laneEnds.push(span.end);
+		} else if (lane !== -1) {
+			laneEnds[lane] = span.end;
+		}
+		placed.push({ span, lane, overlap: 0, underActive: false });
+	}
+	const act = daySpans.find((s) => s.state === "active") ?? null;
+	for (const p of placed) {
+		p.overlap = daySpans.filter(
+			(o) => o.start < p.span.end && o.end > p.span.start,
+		).length;
+		p.underActive =
+			!!act &&
+			p.span !== act &&
+			p.span.start < act.end &&
+			p.span.end > act.start;
+	}
+	return placed.filter((p) => p.lane >= 0); // overflow beyond 3 lanes isn't drawn
+});
+
 // ---- Live clock ------------------------------------------------------------
 const DAY_START = 6;
 const DAY_END = 24;
@@ -243,6 +281,8 @@ const dateLabel = $derived(
 
 const HOUR_TICKS = [6, 9, 12, 15, 18, 21, 24];
 const pct = (h: number) => ((h - DAY_START) / (DAY_END - DAY_START)) * 100;
+// Vertical pixel position of a lane (0 = centred on the baseline, stacking down).
+const laneTop = (lane: number) => 9.5 + lane * 8;
 const fmtHour = (h: number) => String(Math.floor(h)).padStart(2, "0");
 const hhmm = (h: number) =>
 	`${String(Math.floor(h)).padStart(2, "0")}:${String(Math.round((h - Math.floor(h)) * 60)).padStart(2, "0")}`;
@@ -634,34 +674,32 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
       </div>
 
       <!-- timeline body -->
-      <div class="relative h-2">
+      <div class="relative h-12">
         <!-- baseline -->
-        <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-[#DCDAD3]"></div>
+        <div class="absolute left-0 right-0 h-px bg-[#DCDAD3]" style="top: 12px"></div>
 
-        <!-- hour ticks -->
+        <!-- hour ticks (mark on the baseline, label at the bottom) -->
         {#each HOUR_TICKS as h}
-          <div class="absolute top-1/2 -translate-y-1/2 flex flex-col items-center -translate-x-1/2" style="left: {pct(h)}%">
-            <span class="w-px h-2 bg-[#D2D0C8]"></span>
-            <span class="absolute top-[10px] font-mono text-[8.5px] tracking-[0.06em] text-[#C7C5BE] tabular-nums">{fmtHour(h)}</span>
-          </div>
+          <span class="absolute w-px h-1.5 bg-[#D2D0C8] -translate-x-1/2" style="left: {pct(h)}%; top: 9px"></span>
+          <span class="absolute -translate-x-1/2 font-mono text-[8.5px] tracking-[0.06em] text-[#C7C5BE] tabular-nums" style="left: {pct(h)}%; top: 38px">{fmtHour(h)}</span>
         {/each}
 
-        <!-- task spans -->
-        {#each daySpans as span}
+        <!-- task spans stacked into up to 3 lanes -->
+        {#each laidSpans as { span, lane, overlap, underActive } (span.id)}
           <button type="button" onclick={() => (pinned = span)}
             title="{span.title}  ·  {fmtHour(span.start)}:00 → {fmtHour(span.end)}:00"
-            class="group absolute top-1/2 -translate-y-1/2 h-[5px] rounded-full cursor-pointer transition-all hover:h-[7px] mix-blend-multiply"
+            class="group absolute h-[5px] rounded-full cursor-pointer transition-opacity hover:opacity-80"
             class:bg-[#A8A8A2]={span.state === "done"}
             class:bg-[#F1531F]={span.state === "active"}
             class:bg-[#C2C0B8]={span.state === "upcoming"}
-            style="left: {pct(span.start)}%; width: {pct(span.end) - pct(span.start)}%">
+            style="left: {pct(span.start)}%; width: {pct(span.end) - pct(span.start)}%; top: {laneTop(lane)}px">
             {#if span.state === "active"}
-              <span class="absolute bottom-[10px] left-0 whitespace-nowrap font-mono text-[8.5px] tracking-[0.08em] uppercase text-[#F1531F]">
+              <span class="absolute bottom-full left-0 mb-1 whitespace-nowrap font-mono text-[8.5px] tracking-[0.08em] uppercase text-[#F1531F]">
                 {span.id} · {span.title}
               </span>
-            {:else}
-              <span class="absolute bottom-[9px] left-0 whitespace-nowrap font-mono text-[8.5px] tracking-[0.06em] uppercase text-[#A8A8A2] opacity-0 group-hover:opacity-100 transition-opacity">
-                {span.title}
+            {:else if !underActive}
+              <span class="absolute bottom-full left-0 mb-1 whitespace-nowrap font-mono text-[8.5px] tracking-[0.06em] uppercase text-[#A8A8A2] opacity-0 group-hover:opacity-100 transition-opacity">
+                {overlap > 1 ? `×${overlap}` : span.title}
               </span>
             {/if}
           </button>
@@ -669,12 +707,12 @@ const brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
 
         <!-- NOW marker: orange while on the active task, grey in the gaps -->
         {#if nowOnAxis}
-          <div class="absolute top-0.5 h-4 bottom-0 w-px -translate-x-1/2 pointer-events-none transition-colors"
+          <div class="absolute w-px -translate-x-1/2 pointer-events-none transition-colors"
             class:bg-[#F1531F]={onActiveTask} class:bg-[#A8A8A2]={!onActiveTask}
-            style="left: {pct(nowHour)}%">
-            <span class="absolute -top-0.5 left-1/2 -translate-x-1/2 w-[7px] h-[7px] rounded-full bg-[#F7F5F1] ring-2 transition-colors"
+            style="left: {pct(nowHour)}%; top: 6px; height: 30px">
+            <span class="absolute top-[2.5px] left-1/2 -translate-x-1/2 w-[7px] h-[7px] rounded-full bg-[#F7F5F1] ring-2 transition-colors"
               class:ring-[#F1531F]={onActiveTask} class:ring-[#A8A8A2]={!onActiveTask}></span>
-            <span class="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[8.5px] tracking-[0.08em] uppercase tabular-nums transition-colors"
+            <span class="absolute top-[38px] left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[8.5px] tracking-[0.08em] uppercase tabular-nums transition-colors"
               class:text-[#F1531F]={onActiveTask} class:text-[#A8A8A2]={!onActiveTask}>Now {hhmm(nowHour)}</span>
           </div>
         {/if}
