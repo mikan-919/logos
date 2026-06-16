@@ -4,7 +4,7 @@ import { flip } from "$lib/dashboard/flip";
 </script>
 
 <!-- Task Pool -->
-<div use:flip={{ key: "taskpool" }} class="flex items-start gap-4 px-6 py-6 border-r border-[#DCDAD3] min-h-0 overflow-hidden">
+<div use:flip={{ key: "taskpool" }} class="flex items-start gap-4 {dashboard.view==="today" ? "h-50": "h-full"} px-6 py-6 pb-0 border-r border-[#DCDAD3] min-h-0 overflow-hidden">
   <span class="font-mono text-[9px] tracking-[0.12em] uppercase text-[#A8A8A2] shrink-0"
     style="writing-mode: vertical-lr; transform: rotate(180deg);">TASK POOL</span>
   <div class="no-scrollbar flex flex-col gap-1 flex-1 min-w-0 h-full overflow-y-auto pr-1">

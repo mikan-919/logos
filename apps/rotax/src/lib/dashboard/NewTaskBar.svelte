@@ -2,7 +2,7 @@
 import { dashboard } from "$lib/dashboard/state.svelte";
 </script>
 
-<div class="flex items-center gap-4 px-8 border-b border-[#DCDAD3]">
+<div class="row-1/2 flex items-center gap-4 px-8 border-b border-[#DCDAD3]">
   <span class="font-mono text-[10px] tracking-[0.12em] uppercase text-[#A8A8A2] shrink-0">New&nbsp;Task</span>
   <span class="text-[#C2C0B8] shrink-0">＋</span>
   <input

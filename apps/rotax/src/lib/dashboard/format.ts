@@ -20,9 +20,9 @@ export const MONTHS = [
 	"DEC",
 ];
 
-export const FOCUS_SEC = 15; // dummy: 15 min focus + 5 min break
-export const BREAK_SEC = 5;
-export const LONG_BREAK_SEC = 15;
+export const FOCUS_SEC = 25 * 60; // 25 min focus + 5 min break
+export const BREAK_SEC = 5 * 60;
+export const LONG_BREAK_SEC = 15 * 60;
 export const SESSIONS_BEFORE_LONG = 4;
 export const SESSION_TARGET = 8;
 

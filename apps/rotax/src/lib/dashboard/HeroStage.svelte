@@ -7,17 +7,10 @@ import ProgressBar from "$lib/dashboard/ProgressBar.svelte";
 </script>
 
 <!-- R2C1: HAVE A NEXT label (bottom-aligned to the divider) -->
-<div class="col-start-1 row-start-2 flex items-end">
+<div class="flex items-end">
   <p class="font-mono text-[10.5px] tracking-[0.08em] uppercase text-[#6E6E69] mb-2">
     {dashboard.heroLabel} &nbsp;&nbsp; {dashboard.heroTime}
   </p>
-</div>
-
-<!-- R1C2: Brand labels (pinned to the top) -->
-<div class="col-start-2 row-start-1 flex flex-col items-end justify-start gap-0.5 pt-6 pl-8">
-  {#each dashboard.brandLabels as label}
-    <span class="font-mono text-[10.5px] tracking-[0.08em] text-[#6E6E69]">[{label}]</span>
-  {/each}
 </div>
 
 <!-- R3C1: Title + description -->
@@ -94,6 +87,3 @@ import ProgressBar from "$lib/dashboard/ProgressBar.svelte";
     {/each}
   </div>
 </div>
-
-<!-- R5: Progress bar + controls -->
-<ProgressBar />

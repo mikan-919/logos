@@ -6,11 +6,11 @@ import { HOUR_TICKS, pct, fmtHour } from "$lib/dashboard/format";
 </script>
 
 <!-- Multi-day timeline: a vertical stack of day rows, today on top. -->
-<div class="relative flex flex-col min-h-0 overflow-y-auto no-scrollbar px-8 pb-8">
+<div class="relative flex flex-col h-full min-h-0 overflow-y-scroll no-scrollbar px-8 pb-8">
   <!-- Back to today -->
-  <div class="sticky top-0 z-10 flex justify-end py-3 bg-[#F7F5F1]/90 backdrop-blur">
+  <div class="sticky top-0 z-10 flex justify-end">
     <button type="button" onclick={() => dashboard.backToToday()}
-      class="font-mono text-[10px] tracking-[0.08em] uppercase text-[#F1531F] hover:text-[#D8430F] transition-colors">← Back to today</button>
+      class="font-mono text-[10px] tracking-[0.08em] py-3 px-2 backdrop-blur uppercase bg-[#F7F5F1]/90 text-[#F1531F] hover:text-[#D8430F] transition-colors">← Back to today</button>
   </div>
 
   {#each dashboard.timelineDays as day, i (day.key)}

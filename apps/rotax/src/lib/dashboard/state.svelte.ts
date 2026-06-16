@@ -41,7 +41,7 @@ class DashboardState {
 	#lastHoverAt = 0;
 	#hoverTimer: ReturnType<typeof setTimeout> | null = null;
 
-	brandLabels = ["LOGOS", "Rotax", "Velt", "Zestium"];
+	brandLabels = ["TODAY", "Focus", "Plan", "Done"];
 
 	// ---- Derived views ---------------------------------------------------------
 	scheduled = $derived(
@@ -55,10 +55,18 @@ class DashboardState {
 	daySpans = $derived(this.scheduled);
 
 	// Past lane: everything already behind us on the timeline, done or not.
-	trajectoryPast = $derived(this.scheduled.filter((t) => t.end <= this.nowHour));
+	// Nearest-to-now first (most recently finished → oldest).
+	trajectoryPast = $derived(
+		this.scheduled
+			.filter((t) => t.end <= this.nowHour)
+			.sort((a, b) => b.end - a.end),
+	);
 	// Upcoming lane also surfaces the running task, flagged for special display.
+	// Nearest-to-now first (soonest starting → latest).
 	trajectoryUpcoming = $derived(
-		this.scheduled.filter((t) => t.state === "active" || t.state === "upcoming"),
+		this.scheduled
+			.filter((t) => t.state === "active" || t.state === "upcoming")
+			.sort((a, b) => a.start - b.start),
 	);
 	backlog = $derived(this.tasks.filter((t) => t.state === "backlog"));
 	activeTask = $derived(this.tasks.find((t) => t.state === "active") ?? null);
@@ -82,8 +90,8 @@ class DashboardState {
 	// recolored (past = done, future = upcoming).
 	timelineDays = $derived.by(() => {
 		const base = this.scheduled;
-		// Offsets relative to today, top → bottom (today first, then "6/15"-style rows).
-		const offsets = [0, -1, -2, 1, 2, 3];
+		// Offsets relative to today, sorted so rows read top → bottom in date order.
+		const offsets = [-2, -1, 0, 1, 2, 3, 4, 5, 6];
 		return offsets.map((off, idx) => {
 			const d = new Date(this.now);
 			d.setDate(d.getDate() + off);
@@ -93,18 +101,32 @@ class DashboardState {
 			const shift = off === 0 ? 0 : ((idx * 1.5) % 5) - 2;
 			const slice = base.filter((_, i) => off === 0 || (i + idx) % 2 === 0);
 			const spans = slice.map((t) => {
-				const start = off === 0 ? t.start : Math.max(DAY_START, Math.min(DAY_END - 1, t.start + shift));
-				const end = off === 0 ? t.end : Math.max(start + 0.5, Math.min(DAY_END, t.end + shift));
-				const state: TaskState = off === 0 ? t.state : off < 0 ? "done" : "upcoming";
+				const start =
+					off === 0
+						? t.start
+						: Math.max(DAY_START, Math.min(DAY_END - 1, t.start + shift));
+				const end =
+					off === 0
+						? t.end
+						: Math.max(start + 0.5, Math.min(DAY_END, t.end + shift));
+				const state: TaskState =
+					off === 0 ? t.state : off < 0 ? "done" : "upcoming";
 				return { ...t, id: `${t.id}-${off}`, start, end, state };
 			});
-			return { key: `day-${off}`, label, isToday: off === 0, laid: layoutLanes(spans) };
+			return {
+				key: `day-${off}`,
+				label,
+				isToday: off === 0,
+				laid: layoutLanes(spans),
+			};
 		});
 	});
 
 	// ---- Live clock ------------------------------------------------------------
 	nowHour = $derived(
-		this.now.getHours() + this.now.getMinutes() / 60 + this.now.getSeconds() / 3600,
+		this.now.getHours() +
+			this.now.getMinutes() / 60 +
+			this.now.getSeconds() / 3600,
 	);
 	nowOnAxis = $derived(this.nowHour >= DAY_START && this.nowHour <= DAY_END);
 
@@ -134,12 +156,20 @@ class DashboardState {
 		this.scheduled.find((t) => t.state === "upcoming") ?? null,
 	);
 	heroTask = $derived(this.activeTask ?? this.nextUpcoming);
-	heroIsUpcoming = $derived(this.activeTask === null && this.nextUpcoming !== null);
+	heroIsUpcoming = $derived(
+		this.activeTask === null && this.nextUpcoming !== null,
+	);
 	heroLabel = $derived(
-		this.activeTask ? "IN PROGRESS" : this.heroIsUpcoming ? "UP NEXT" : "NO TASKS",
+		this.activeTask
+			? "IN PROGRESS"
+			: this.heroIsUpcoming
+				? "UP NEXT"
+				: "NO TASKS",
 	);
 	heroTime = $derived(
-		this.heroTask ? `${hhmm(this.heroTask.start!)} → ${hhmm(this.heroTask.end!)}` : "—",
+		this.heroTask
+			? `${hhmm(this.heroTask.start!)} → ${hhmm(this.heroTask.end!)}`
+			: "—",
 	);
 	elapsedH = $derived(
 		this.activeTask ? Math.max(0, this.nowHour - this.activeTask.start!) : 0,
@@ -147,7 +177,8 @@ class DashboardState {
 	heroProgress = $derived(
 		this.activeTask
 			? clamp01(
-					(this.nowHour - this.activeTask.start!) / (this.activeTask.end! - this.activeTask.start!),
+					(this.nowHour - this.activeTask.start!) /
+						(this.activeTask.end! - this.activeTask.start!),
 				)
 			: 0,
 	);
@@ -188,7 +219,10 @@ class DashboardState {
 
 	taskStats = $derived([
 		{ key: "ELAPSED", value: hms(this.elapsedH) },
-		{ key: "EST. FINISH", value: this.activeTask ? hhmm(this.activeTask.end!) : "—" },
+		{
+			key: "EST. FINISH",
+			value: this.activeTask ? hhmm(this.activeTask.end!) : "—",
+		},
 		{ key: "SESSION", value: `${this.sessionsDone} / ${SESSION_TARGET}` },
 	]);
 
@@ -205,16 +239,21 @@ class DashboardState {
 	]);
 
 	hoveredTask = $derived(
-		this.hoveredId !== null ? (this.tasks.find((t) => t.id === this.hoveredId) ?? null) : null,
+		this.hoveredId !== null
+			? (this.tasks.find((t) => t.id === this.hoveredId) ?? null)
+			: null,
 	);
 	selectedCard = $derived(this.hoveredTask ?? this.pinned);
 
 	// ---- Actions ---------------------------------------------------------------
-	togglePause = () => { this.running = !this.running; };
+	togglePause = () => {
+		this.running = !this.running;
+	};
 
 	startTask = (task: Task) => {
 		for (const t of this.tasks) if (t.state === "active") t.state = "upcoming";
-		const dur = task.start !== null && task.end !== null ? task.end - task.start : 1;
+		const dur =
+			task.start !== null && task.end !== null ? task.end - task.start : 1;
 		task.start = this.nowHour;
 		task.end = Math.min(DAY_END, this.nowHour + dur);
 		task.state = "active";
@@ -259,7 +298,8 @@ class DashboardState {
 		if (e > s) {
 			this.reschedTask.start = s;
 			this.reschedTask.end = e;
-			if (this.reschedTask.state === "backlog") this.reschedTask.state = "upcoming";
+			if (this.reschedTask.state === "backlog")
+				this.reschedTask.state = "upcoming";
 		}
 		this.reschedTask = null;
 	};
@@ -316,7 +356,9 @@ class DashboardState {
 	// $effect cannot run at module top level. This method sets up both intervals
 	// and returns a teardown function. Called from +page.svelte via $effect.
 	startClocks = (): (() => void) => {
-		const clock = setInterval(() => { this.now = new Date(); }, 250);
+		const clock = setInterval(() => {
+			this.now = new Date();
+		}, 250);
 		const pomo = setInterval(() => {
 			if (!this.running || !this.activeTask) return;
 			if (this.pomoElapsed + 1 >= this.phaseLength) {
@@ -324,7 +366,9 @@ class DashboardState {
 					this.sessionsDone += 1;
 					if (this.activeTask) {
 						const dur = this.activeTask.end! - this.activeTask.start!;
-						this.pomoHistory.push(clamp01((this.nowHour - this.activeTask.start!) / dur) * 100);
+						this.pomoHistory.push(
+							clamp01((this.nowHour - this.activeTask.start!) / dur) * 100,
+						);
 					}
 					this.phase = "break";
 				} else {
@@ -335,7 +379,10 @@ class DashboardState {
 				this.pomoElapsed += 1;
 			}
 		}, 1000);
-		return () => { clearInterval(clock); clearInterval(pomo); };
+		return () => {
+			clearInterval(clock);
+			clearInterval(pomo);
+		};
 	};
 }
 

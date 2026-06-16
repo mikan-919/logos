@@ -7,3 +7,4 @@ node_modules
 # SvelteKit generated output
 .svelte-kit/
 build/
+.claude/worktrees

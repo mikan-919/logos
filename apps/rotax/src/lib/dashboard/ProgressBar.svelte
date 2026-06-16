@@ -7,7 +7,7 @@ import { flip } from "$lib/dashboard/flip";
 <!-- Progress bar + controls. Shared by the full HeroStage (today) and the
      compact strip (timeline). The grid-placement classes only apply when
      mounted inside the center grid; they are inert in the compact strip. -->
-<div use:flip={{ key: "progress" }} class="col-span-2 row-start-5 flex items-center gap-6 pb-6">
+<div use:flip={{ key: "progress" }} class="col-span-2 row-start-5 px-8 flex items-center gap-6 pb-6">
 
   <!-- elapsed % -->
   <span class="font-mono text-[10px] tracking-[0.08em] text-[#A8A8A2] tabular-nums shrink-0">
@@ -22,10 +22,10 @@ import { flip } from "$lib/dashboard/flip";
     <!-- pomodoro points: predicted (hollow) on the track, recorded (solid) over the fill -->
     <div class="absolute inset-0 pointer-events-none">
       {#each dashboard.pomoForecast as m}
-        <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-white/50" style="left: {m}%"></div>
+        <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[6px] h-[6px] bg-[#F1531F]/50" style="left: {m}%"></div>
       {/each}
       {#each dashboard.pomoHistory as m}
-        <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-white" style="left: {m}%"></div>
+        <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[6px] h-[6px] bg-[#F1531F]" style="left: {m}%"></div>
       {/each}
     </div>
     <!-- moving head -->
