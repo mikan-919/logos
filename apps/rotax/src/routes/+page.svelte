@@ -58,9 +58,14 @@ function onKeydown(e: KeyboardEvent) {
 }
 </script>
 
+<!-- Today vs. timeline differ only by row sizing: in `today` the hero owns the
+     middle and the lower panel peeks at 16rem; in `timeline` the hero collapses
+     to 0 and the panel takes the rest. The row change is instant — FLIP is the
+     sole motion system, morphing the shared children into their new slots, so
+     nothing fights a parent CSS transform and no region slides over another. -->
 <div class="w-dvw h-dvh bg-[#F7F5F1] text-[#0E0E0C] grid overflow-hidden grid-cols-1"
-  style="grid-template-rows: 4.5rem auto 1fr 16rem;">
-  <NewTaskBar />
+  style="grid-template-rows: 4.5rem auto {dashboard.view === 'today' ? '1fr 16rem' : '0px 1fr'};">
+  <NewTaskBar onswitch={switchView} />
 
 
     <!-- Compact today strip: keep only the clock (DayTimeline) and the
@@ -78,8 +83,10 @@ function onKeydown(e: KeyboardEvent) {
          <div class="px-8 overflow-hidden row-[3/4] col-start-1 grid grid-cols-[1fr_auto]">
            <HeroStage />
          </div>
-    <!-- Lower region: TASK POOL stays on the left, trajectory + day stack on the right. -->
-    <div class="flex flex-col min-h-0 row-[3/5] col-start-1 transition-transform ease-in-out duration-400 {dashboard.view==="today"?"translate-y-[calc(100%-16rem)]":"translate-y-0"}">
+    <!-- Lower region: TASK POOL stays on the left, trajectory + day stack on the right.
+         Occupies its own row (no overlap with the hero); height changes with the
+         view and FLIP carries the children across the change. -->
+    <div class="flex flex-col min-h-0 overflow-hidden row-[4/5] col-start-1">
         <ProgressBar />
       <div use:flip={{ key: "divider-center" }} class="h-px bg-[#DCDAD3] shrink-0"></div>
       <div class="grid flex-1 min-h-0 backdrop-blur-lg bg-[#f7f5f180]" style="grid-template-columns: 280px 1fr;">

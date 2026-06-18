@@ -126,7 +126,8 @@ import { flip } from "$lib/dashboard/flip";
                 {/if}
               </div>
 
-              <button class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#E0BBB2] text-[#C2331B] hover:bg-[#C2331B] hover:text-white hover:border-[#C2331B] transition-colors">Delete</button>
+              <button use:hold={{ onhold: () => dashboard.selectedCard && dashboard.deleteTask(dashboard.selectedCard) }}
+                class="font-mono text-[10px] tracking-[0.08em] uppercase px-4 h-8 rounded-full border border-[#E0BBB2] text-[#C2331B] hover:bg-[#C2331B] hover:text-white hover:border-[#C2331B] transition-colors select-none touch-none">Hold to Delete</button>
             </div>
           </div>
 

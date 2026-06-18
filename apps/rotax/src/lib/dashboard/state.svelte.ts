@@ -316,6 +316,14 @@ class DashboardState {
 		this.startTask(task);
 	};
 
+	deleteTask = (task: Task) => {
+		this.tasks = this.tasks.filter((t) => t.id !== task.id);
+		if (this.pinned?.id === task.id) this.pinned = null;
+		if (this.hoveredId === task.id) this.hoveredId = null;
+		if (this.reschedTask?.id === task.id) this.reschedTask = null;
+		if (this.editing?.id === task.id) this.editing = null;
+	};
+
 	hoverTask = (id: string | null) => {
 		if (this.#hoverTimer) {
 			clearTimeout(this.#hoverTimer);
