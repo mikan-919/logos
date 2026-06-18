@@ -1,46 +1,48 @@
 <script lang="ts">
-import { entity } from "./state.svelte";
-
-const worlds = ["all", "rotax", "velt", "github"] as const;
+import { entity, archetypeColor } from "./state.svelte";
 </script>
 
-<!-- worldbar: archetype-query input + world/layer switch (A5) -->
-<!-- Square, hairline bottom — structure shown honestly -->
-<div class="flex items-center gap-0 border-b border-[var(--line)] min-w-0">
+<!--
+  worldbar: archetype-query input + entity picker (A5)
+  Left: filter input that narrows the entity list below.
+  Right: service filter that narrows which components are shown in the panel.
+  Both have visible labels so their purpose is immediately readable.
+-->
+<div class="flex items-stretch border-b border-[var(--line)]">
 
-  <!-- Archetype query (left, fills space) -->
-  <label class="flex items-center gap-3 flex-1 min-w-0 px-6 h-12">
-    <span class="font-mono text-[10.5px] tracking-[0.08em] uppercase text-[var(--ink-300)] shrink-0 select-none">
-      ARCHETYPE
+  <!-- Entity search -->
+  <label class="flex items-center gap-2 flex-1 min-w-0 px-5 h-12 shrink-0">
+    <span class="font-mono text-[10px] tracking-[0.10em] uppercase text-[var(--ink-300)] select-none whitespace-nowrap">
+      ENTITY
     </span>
     <input
       type="text"
       bind:value={entity.query}
-      placeholder="filter entities…"
+      placeholder="search id, archetype, or title…"
       class="flex-1 min-w-0 bg-transparent border-0 outline-none
-             font-mono text-[13px] tracking-[0.02em] text-[var(--ink)]
+             font-mono text-[12px] tracking-[0.02em] text-[var(--ink)]
              placeholder:text-[var(--ink-300)]" />
   </label>
 
   <!-- Divider -->
-  <div class="w-px h-6 bg-[var(--line)] shrink-0"></div>
+  <div class="w-px self-stretch bg-[var(--line)] shrink-0 my-2"></div>
 
-  <!-- World switch (right) -->
-  <div class="flex items-center gap-0 px-4 h-12 shrink-0">
-    <span class="font-mono text-[10.5px] tracking-[0.08em] uppercase text-[var(--ink-300)] mr-3 select-none">
-      LAYER
+  <!-- Service filter — "which service's components to show" -->
+  <div class="flex items-center gap-2 px-4 h-12 shrink-0">
+    <span class="font-mono text-[10px] tracking-[0.10em] uppercase text-[var(--ink-300)] select-none whitespace-nowrap">
+      SERVICE
     </span>
     <div class="flex items-center gap-1">
-      {#each worlds as w}
+      {#each ["all", ...entity.availableServices] as s}
         <button
           type="button"
-          onclick={() => (entity.world = w)}
-          class="font-mono text-[10.5px] tracking-[0.08em] uppercase px-3 h-7
+          onclick={() => (entity.serviceFilter = s)}
+          class="font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 h-6
                  rounded-full border transition-colors
-                 {entity.world === w
+                 {entity.serviceFilter === s
                    ? 'bg-[var(--ink)] text-[var(--paper)] border-[var(--ink)]'
                    : 'text-[var(--ink-500)] border-[var(--line)] hover:border-[var(--line-strong)] hover:text-[var(--ink)]'}">
-          {w}
+          {s}
         </button>
       {/each}
     </div>

@@ -14,6 +14,8 @@ export type Component = {
 	state: ComponentState;
 };
 
+// Ref is always stored on the source entity (outgoing).
+// Incoming refs are computed by scanning all entities.
 export type Ref = {
 	id: string;
 	toEntityId: string;
@@ -29,9 +31,9 @@ export type ProvenanceEntry = {
 
 export type Entity = {
 	id: string;
-	archetype: string;     // e.g. "TASK", "PROJECT", "CONCEPT"
+	archetype: string;     // e.g. "TASK", "PROJECT", "PERSON"
 	components: Component[];
-	refs: Ref[];
+	refs: Ref[];           // outgoing only; incoming are derived
 	provenance: ProvenanceEntry[];
 };
 
@@ -49,9 +51,8 @@ export function seedEntities(): Entity[] {
 					meta: [
 						{ key: "start", value: "16:00" },
 						{ key: "end", value: "17:00" },
-						{ key: "state", value: "upcoming" },
 					],
-					state: "upcoming",
+					state: "active",
 				},
 				{
 					id: "CMP-002",
@@ -68,10 +69,9 @@ export function seedEntities(): Entity[] {
 					id: "CMP-003",
 					service: "github",
 					kind: "Issue",
-					title: "Report data pipeline: fix NaN in revenue column",
+					title: "Report pipeline: fix NaN in revenue column",
 					meta: [
 						{ key: "repo", value: "analytics/pipeline" },
-						{ key: "status", value: "closed" },
 					],
 					state: "done",
 				},
@@ -84,12 +84,6 @@ export function seedEntities(): Entity[] {
 					label: "part-of",
 				},
 				{
-					id: "REF-R2",
-					toEntityId: "ENT-E5F6",
-					toArchetype: "PERSON",
-					label: "assigned-to",
-				},
-				{
 					id: "REF-R3",
 					toEntityId: "ENT-G7H8",
 					toArchetype: "TASK",
@@ -100,22 +94,22 @@ export function seedEntities(): Entity[] {
 				{
 					ts: "2026-06-19T09:14:22Z",
 					origin: "rotax",
-					event: "component CMP-001 state → upcoming",
+					event: "CMP-001 state → active",
 				},
 				{
 					ts: "2026-06-18T17:42:01Z",
 					origin: "velt",
-					event: "component CMP-002 created",
+					event: "CMP-002 created",
 				},
 				{
 					ts: "2026-06-18T11:03:55Z",
 					origin: "github",
-					event: "component CMP-003 state → closed",
+					event: "CMP-003 state → done",
 				},
 				{
 					ts: "2026-06-17T08:00:00Z",
 					origin: "logos",
-					event: "entity ENT-A1B2 grounded",
+					event: "entity grounded",
 				},
 			],
 		},
@@ -128,26 +122,23 @@ export function seedEntities(): Entity[] {
 					service: "rotax",
 					kind: "Task",
 					title: "Plan the sprint",
-					meta: [
-						{ key: "state", value: "done" },
-						{ key: "end", value: "09:30" },
-					],
+					meta: [{ key: "end", value: "09:30" }],
 					state: "done",
 				},
 			],
 			refs: [
 				{
-					id: "REF-P1",
-					toEntityId: "ENT-A1B2",
-					toArchetype: "TASK",
-					label: "contains",
+					id: "REF-P2",
+					toEntityId: "ENT-E5F6",
+					toArchetype: "PERSON",
+					label: "owned-by",
 				},
 			],
 			provenance: [
 				{
 					ts: "2026-06-15T10:00:00Z",
 					origin: "logos",
-					event: "entity ENT-C3D4 grounded",
+					event: "entity grounded",
 				},
 			],
 		},
@@ -169,7 +160,7 @@ export function seedEntities(): Entity[] {
 				{
 					ts: "2026-06-10T09:00:00Z",
 					origin: "logos",
-					event: "entity ENT-E5F6 grounded",
+					event: "entity grounded",
 				},
 			],
 		},
@@ -182,10 +173,7 @@ export function seedEntities(): Entity[] {
 					service: "rotax",
 					kind: "Task",
 					title: "Pull the latest data export",
-					meta: [
-						{ key: "state", value: "done" },
-						{ key: "end", value: "15:00" },
-					],
+					meta: [{ key: "end", value: "15:00" }],
 					state: "done",
 				},
 			],
@@ -194,7 +182,7 @@ export function seedEntities(): Entity[] {
 				{
 					ts: "2026-06-19T07:00:00Z",
 					origin: "rotax",
-					event: "component CMP-030 state → done",
+					event: "CMP-030 state → done",
 				},
 			],
 		},

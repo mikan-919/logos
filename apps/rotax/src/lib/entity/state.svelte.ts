@@ -1,10 +1,36 @@
-import { seedEntities, type Entity, type Component } from "./seed";
+import { seedEntities, type Entity, type Component, type Ref } from "./seed";
+
+// Derived ref with direction context — used in RefsPanel
+export type DirectedRef = Ref & {
+	direction: "outgoing" | "incoming";
+	fromEntityId: string;
+	fromArchetype: string;
+};
+
+// Archetype → accent color mapping (DESIGN.md tokens + semantic extensions)
+export const ARCHETYPE_COLOR: Record<string, string> = {
+	TASK: "var(--accent)",
+	PROJECT: "var(--positive)",
+	PERSON: "var(--warning)",
+};
+
+export function archetypeColor(archetype: string): string {
+	return ARCHETYPE_COLOR[archetype] ?? "var(--ink-300)";
+}
 
 class EntityState {
 	entities = $state<Entity[]>(seedEntities());
-	focusedId = $state<string>(seedEntities()[0].id);
+	focusedId = $state<string>("");
 	query = $state("");
-	world = $state<"all" | "rotax" | "velt" | "github">("all");
+	serviceFilter = $state<string>("all");
+
+	// Auto-focus: prefer entity with an active component, then first match
+	_init = (() => {
+		const active = this.entities.find((e) =>
+			e.components.some((c) => c.state === "active"),
+		);
+		this.focusedId = active?.id ?? this.entities[0]?.id ?? "";
+	})();
 
 	focused = $derived(
 		this.entities.find((e) => e.id === this.focusedId) ?? this.entities[0],
@@ -13,14 +39,16 @@ class EntityState {
 	filteredComponents = $derived.by(() => {
 		const e = this.focused;
 		if (!e) return [];
-		if (this.world === "all") return e.components;
-		return e.components.filter((c) => c.service === this.world);
+		if (this.serviceFilter === "all") return e.components;
+		return e.components.filter((c) => c.service === this.serviceFilter);
 	});
 
-	// Archetype filter on entities
-	archetypes = $derived(
-		[...new Set(this.entities.map((e) => e.archetype))].sort(),
-	);
+	// All unique services across the focused entity's components
+	availableServices = $derived.by(() => {
+		const e = this.focused;
+		if (!e) return [];
+		return [...new Set(e.components.map((c) => c.service))].sort();
+	});
 
 	matchedEntities = $derived.by(() => {
 		const q = this.query.trim().toLowerCase();
@@ -33,8 +61,45 @@ class EntityState {
 		);
 	});
 
+	hasActiveComponent = (e: Entity) =>
+		e.components.some((c) => c.state === "active");
+
+	// Directed refs: outgoing from focused + incoming from all others
+	directedRefs = $derived.by((): DirectedRef[] => {
+		const f = this.focused;
+		if (!f) return [];
+
+		const out: DirectedRef[] = f.refs.map((r) => ({
+			...r,
+			direction: "outgoing" as const,
+			fromEntityId: f.id,
+			fromArchetype: f.archetype,
+		}));
+
+		const inc: DirectedRef[] = [];
+		for (const e of this.entities) {
+			if (e.id === f.id) continue;
+			for (const r of e.refs) {
+				if (r.toEntityId === f.id) {
+					inc.push({
+						...r,
+						direction: "incoming" as const,
+						fromEntityId: e.id,
+						fromArchetype: e.archetype,
+						toEntityId: f.id,
+						toArchetype: f.archetype,
+					});
+				}
+			}
+		}
+
+		return [...out, ...inc];
+	});
+
 	focus = (id: string) => {
 		this.focusedId = id;
+		// reset service filter when switching entity
+		this.serviceFilter = "all";
 	};
 }
 
