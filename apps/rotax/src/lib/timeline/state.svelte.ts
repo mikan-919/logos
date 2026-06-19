@@ -14,6 +14,9 @@ class TimelineState {
 	paused = $state(false);
 	ignited = $state<Task | null>(null);
 	calOpen = $state(false);
+	// The cursor — which task the user has selected/is looking at.
+	// Persists across columns; the center always renders this task.
+	selectedId = $state<string | null>(null);
 
 	#clockInterval: ReturnType<typeof setInterval> | null = null;
 	#pomoInterval: ReturnType<typeof setInterval> | null = null;
@@ -34,8 +37,22 @@ class TimelineState {
 		this.scheduled.find((t) => t.state === "upcoming") ?? null,
 	);
 
-	// Center column focus: ignited > active > next upcoming
-	heroTask = $derived(this.ignited ?? this.activeTask ?? this.nextUpcoming);
+	// Default cursor target when nothing is explicitly selected
+	defaultTask = $derived(this.activeTask ?? this.nextUpcoming);
+
+	// The task the cursor is on — explicit selection > default
+	selected = $derived(
+		this.selectedId
+			? (this.tasks.find((t) => t.id === this.selectedId) ?? this.defaultTask)
+			: this.defaultTask,
+	);
+
+	// Center column: when timer running show ignited, otherwise show cursor
+	heroTask = $derived(this.ignited ?? this.selected);
+
+	select = (task: Task) => {
+		this.selectedId = task.id;
+	};
 
 	nowHour = $derived(
 		this.now.getHours() +
