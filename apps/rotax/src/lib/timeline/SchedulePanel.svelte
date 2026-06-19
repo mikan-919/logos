@@ -9,7 +9,7 @@ const GAP_MAX = 56;
 
 // Task height: proportional to duration, with min/max
 const TASK_PX_PER_HOUR = 56;
-const TASK_MIN = 40;
+const TASK_MIN = 48;
 const TASK_MAX = 140;
 
 type Item = {
@@ -115,7 +115,7 @@ const nowInsertIdx = $derived.by(() => {
 						<div class="relative pl-3 pr-2 py-2 h-full flex flex-col justify-center gap-0.5">
 							<p class="text-[12px] leading-[1.3] font-medium
 									  {item.isCursor ? 'text-white' : item.isDone ? 'line-through text-[var(--ink-300)]' : tl.viewDayOffset !== 0 ? 'text-[var(--ink-300)]' : 'text-[var(--ink)]'}
-									  {item.taskHeight < 44 ? 'truncate' : ''}">
+									  {item.taskHeight < 52 ? 'truncate' : ''}">
 								{item.task.title}
 							</p>
 							{#if item.taskHeight > 56}
@@ -124,7 +124,7 @@ const nowInsertIdx = $derived.by(() => {
 									{hhmm(item.task.start)} – {hhmm(item.task.end)}
 								</p>
 							{/if}
-							{#if item.crossesMidnight}
+							{#if item.crossesMidnight && item.taskHeight >= 64}
 								<p class="font-mono text-[9px] tracking-[0.06em]
 										  {item.isCursor ? 'text-white/60' : 'text-[var(--ink-300)]'}">
 									↓ 翌
