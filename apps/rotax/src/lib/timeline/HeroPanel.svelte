@@ -96,36 +96,30 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{:else if tl.heroTask}
 		<!-- ── IDLE: poster — selected task rendered large ── -->
-		<div class="flex-1 flex flex-col px-10 pt-[10%] min-h-0 gap-8 overflow-hidden">
+		<div class="flex-1 flex flex-col px-10 py-[8%] min-h-0 justify-between overflow-hidden">
 
 			<!-- Time above -->
-			{#if tl.heroTask.start != null}
-				<span class="font-mono text-[13px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums">
-					{hhmm(tl.heroTask.start)}
-				</span>
-			{/if}
+			<span class="font-mono text-[13px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums">
+				{tl.heroTask.start != null ? hhmm(tl.heroTask.start) : ''}
+			</span>
 
 			<!-- Poster title -->
-			<div class="flex flex-col gap-0" style="line-height: 0.92;">
+			<div class="flex flex-col gap-0 shrink min-h-0 overflow-hidden" style="line-height: 0.92;">
 				{#each lines as line}
-					<span class="text-[clamp(40px,5.5vw,80px)] font-bold tracking-[-0.03em]
+					<span class="text-[clamp(28px,4vw,72px)] font-bold tracking-[-0.03em]
 								 text-[var(--ink)] uppercase leading-[0.92]">
 						{line}
 					</span>
 				{/each}
 			</div>
 
-			<!-- Time below -->
-			{#if tl.heroTask.end != null}
+			<!-- Time below + CTA -->
+			<div class="flex flex-col gap-4 shrink-0">
 				<span class="font-mono text-[13px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums">
-					{hhmm(tl.heroTask.end)}
+					{tl.heroTask.end != null ? hhmm(tl.heroTask.end) : ''}
 				</span>
-			{/if}
-
-			<!-- CTA -->
-			<div class="flex flex-col gap-3 max-w-xs">
 				<button type="button" onclick={() => tl.ignite(tl.heroTask!)}
-					class="w-full py-4 bg-[var(--accent)] text-white font-mono text-[13px]
+					class="w-full max-w-xs py-4 bg-[var(--accent)] text-white font-mono text-[13px]
 						   tracking-[0.10em] uppercase hover:bg-[var(--accent-hover)]
 						   transition-colors flex items-center justify-center gap-3">
 					<span class="text-[18px] leading-none">▶</span>
