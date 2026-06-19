@@ -38,8 +38,12 @@ $effect(() => {
 
 			<!-- Task blocks -->
 			{#each tl.viewDayTasks as task (task.id)}
-				{@const top = (task.start - HOUR_START) * HOUR_PX + 2}
-				{@const height = Math.max(40, (task.end - task.start) * HOUR_PX - 6)}
+				{@const crossesMidnight = task.end > 24}
+				{@const startsYesterday = task.start < HOUR_START}
+				{@const displayStart = Math.max(task.start, HOUR_START)}
+				{@const displayEnd = Math.min(task.end, HOUR_END)}
+				{@const top = (displayStart - HOUR_START) * HOUR_PX + 2}
+				{@const height = Math.max(40, (displayEnd - displayStart) * HOUR_PX - 6)}
 				{@const isCursor = tl.viewDayOffset === 0 && tl.selected?.id === task.id && !tl.ignited}
 				{@const isDone = 'state' in task && task.state === "done"}
 				{@const isClickable = tl.viewDayOffset === 0 && !isDone}
@@ -78,6 +82,12 @@ $effect(() => {
 								<p class="font-mono text-[10px] tracking-[0.04em] tabular-nums
 										  {isCursor ? 'text-white/70' : 'text-[var(--ink-300)]'}">
 									{hhmm(task.start)} – {hhmm(task.end)}
+								</p>
+							{/if}
+							{#if crossesMidnight && height > 30}
+								<p class="font-mono text-[9px] tracking-[0.06em]
+										  {isCursor ? 'text-white/60' : 'text-[var(--ink-300)]'}">
+									↓ 翌
 								</p>
 							{/if}
 						</div>

@@ -30,8 +30,10 @@ export const pct = (h: number) => ((h - DAY_START) / (DAY_END - DAY_START)) * 10
 // Vertical pixel position of a lane (0 = centred on the baseline, stacking down).
 export const laneTop = (lane: number) => 9.5 + lane * 8;
 export const fmtHour = (h: number) => String(Math.floor(h)).padStart(2, "0");
-export const hhmm = (h: number) =>
-	`${String(Math.floor(h)).padStart(2, "0")}:${String(Math.round((h - Math.floor(h)) * 60)).padStart(2, "0")}`;
+export const hhmm = (h: number) => {
+	const wrapped = ((h % 24) + 24) % 24;
+	return `${String(Math.floor(wrapped)).padStart(2, "0")}:${String(Math.round((wrapped - Math.floor(wrapped)) * 60)).padStart(2, "0")}`;
+};
 // HH:MM:SS — for the live readouts that should visibly tick every second.
 export const hms = (h: number) => {
 	const total = Math.max(0, Math.round(h * 3600));

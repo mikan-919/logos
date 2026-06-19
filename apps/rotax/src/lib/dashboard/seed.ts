@@ -93,6 +93,15 @@ export function seedTasks(): Task[] {
 			state: "upcoming",
 		},
 		{
+			id: "TASK-SL01",
+			title: "Sleep",
+			description: "Get enough rest.",
+			todos: [],
+			start: 24,
+			end: 31, // 07:00 翌日
+			state: "upcoming",
+		},
+		{
 			id: "TASK-RL01",
 			title: "Book a dentist appointment",
 			description: "Overdue for a checkup.",
