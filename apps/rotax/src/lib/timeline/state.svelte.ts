@@ -3,7 +3,7 @@ import { hhmm } from "$lib/dashboard/format";
 
 export const HOUR_START = 7;
 export const HOUR_END = 24;
-export const HOUR_PX = 64;
+export const HOUR_PX = 80;
 
 class TimelineState {
 	tasks = $state<Task[]>(seedTasks());
