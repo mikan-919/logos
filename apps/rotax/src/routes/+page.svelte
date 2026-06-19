@@ -37,11 +37,23 @@ $effect(() => tl.startClocks());
 		</button>
 	</div>
 
-	<!-- 3 columns -->
-	<div class="flex-1 min-h-0 grid" style="grid-template-columns: 1fr 1.6fr 1.2fr;">
-		<BacklogPanel />
+	<!-- 3 columns: 1fr · 1.8fr · 1fr -->
+	<div class="flex-1 min-h-0 grid" style="grid-template-columns: 1fr 1.8fr 1fr;">
+
+		<!-- Left: dim when timer running -->
+		<div class="min-h-0 overflow-hidden transition-all duration-500
+					{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
+			<BacklogPanel />
+		</div>
+
 		<HeroPanel />
-		<SchedulePanel />
+
+		<!-- Right: dim when timer running -->
+		<div class="min-h-0 overflow-hidden transition-all duration-500
+					{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
+			<SchedulePanel />
+		</div>
+
 	</div>
 
 	<!-- Calendar peek overlay -->
