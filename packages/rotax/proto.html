@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotax — timeline / ignite</title>
+<style>
+  :root{
+    --prism:#5570C5;
+    --haze:#BEC9EA;
+    --depth:#2E4296;
+    --brand:#7B90D2;
+    --ink:#0c0f1a;
+    --ink-2:#12172a;
+    --surface:#161d33;
+    --surface-2:#1b2440;
+    --line:#27325a;
+    --text:#dfe5f5;
+    --text-dim:#8b97c0;
+    --text-faint:#5a648f;
+    --r:10px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(85,112,197,.10), transparent 60%),
+      var(--ink);
+    color:var(--text);
+    font-family:"Inter","Helvetica Neue","Hiragino Kaku Gothic ProN",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    letter-spacing:.01em;
+    overflow:hidden;
+  }
+  .app{
+    max-width:440px;margin:0 auto;height:100vh;
+    display:flex;flex-direction:column;position:relative;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
+  }
+
+  /* header */
+  .top{
+    padding:22px 22px 14px;display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .top h1{
+    font-size:13px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--haze);
+  }
+  .top .date{font-size:12px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+  .peek{
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);
+    border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer;
+    background:transparent;transition:.2s var(--ease);
+  }
+  .peek:hover{color:var(--haze);border-color:var(--brand)}
+
+  /* timeline */
+  .timeline{
+    flex:1;overflow-y:auto;padding:8px 0 120px;position:relative;
+    transition:filter .45s var(--ease),transform .45s var(--ease),opacity .45s var(--ease);
+  }
+  .timeline.dimmed{filter:saturate(.6) brightness(.62);transform:scale(.985);pointer-events:none}
+  .hour{display:flex;min-height:64px;position:relative}
+  .hour .tick{
+    width:58px;flex:none;text-align:right;padding:6px 12px 0 0;
+    font-size:11px;color:var(--text-faint);font-variant-numeric:tabular-nums;
+    border-right:1px solid var(--line);
+  }
+  .hour .lane{flex:1;position:relative;padding:6px 14px}
+
+  .block{
+    position:relative;border-radius:var(--r);padding:11px 13px;margin-bottom:6px;cursor:pointer;
+    background:linear-gradient(180deg,var(--surface),var(--surface-2));
+    border:1px solid var(--line);
+    transition:border-color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease);
+  }
+  .block:hover{transform:translateX(2px);border-color:var(--brand)}
+  .block .t{font-size:14px;font-weight:540}
+  .block .meta{font-size:11px;color:var(--text-dim);margin-top:3px;font-variant-numeric:tabular-nums}
+  .block .edge{
+    position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:var(--r) 0 0 var(--r);
+    background:var(--brand);opacity:.55;
+  }
+  /* the block currently running, shown in timeline as "in progress" */
+  .block.running{
+    border-color:var(--prism);
+    box-shadow:0 0 0 1px var(--prism), 0 8px 30px -12px rgba(85,112,197,.7);
+  }
+  .block.running .edge{opacity:1;background:linear-gradient(var(--haze),var(--prism))}
+  .block.running .live{
+    display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--haze);margin-top:6px;
+  }
+  .block .live{display:none}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--haze);
+       box-shadow:0 0 0 0 rgba(190,201,234,.7);animation:pulse 1.8s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(190,201,234,.55)}
+    70%{box-shadow:0 0 0 7px rgba(190,201,234,0)}
+    100%{box-shadow:0 0 0 0 rgba(190,201,234,0)}
+  }
+  /* progress fill across the running block */
+  .block .fill{
+    position:absolute;left:0;top:0;bottom:0;width:0%;
+    background:linear-gradient(90deg,rgba(85,112,197,.22),rgba(85,112,197,.05));
+    border-radius:var(--r);pointer-events:none;transition:width .9s linear;
+  }
+
+  /* now line */
+  .now{position:absolute;left:58px;right:0;height:0;border-top:1px solid var(--prism);z-index:5;
+       box-shadow:0 0 12px rgba(85,112,197,.5)}
+  .now::before{content:"";position:absolute;left:-4px;top:-3px;width:7px;height:7px;border-radius:50%;
+       background:var(--prism);box-shadow:0 0 10px var(--prism)}
+
+  /* pomodoro = the ignited block's other self. fixed overlay, timeline stays alive beneath */
+  .pomo{
+    position:absolute;left:14px;right:14px;
+    border-radius:16px;z-index:20;overflow:hidden;
+    background:linear-gradient(180deg,#1c2748,#171e36);
+    border:1px solid var(--prism);
+    box-shadow:0 30px 80px -24px rgba(8,12,26,.9), 0 0 0 1px rgba(85,112,197,.25);
+    will-change:transform,top,height;
+    display:flex;flex-direction:column;
+  }
+  .pomo .ph{padding:16px 18px 0;display:flex;justify-content:space-between;align-items:flex-start}
+  .pomo .ph .t{font-size:16px;font-weight:560}
+  .pomo .ph .sub{font-size:11px;color:var(--text-dim);margin-top:3px;letter-spacing:.06em}
+  .pomo .close{background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;
+       letter-spacing:.1em;text-transform:uppercase}
+  .pomo .close:hover{color:var(--haze)}
+  .pomo .ring-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       padding:6px 0 4px;opacity:0;transition:opacity .3s var(--ease) .15s}
+  .pomo.open .ring-wrap{opacity:1}
+  .ring{position:relative;width:188px;height:188px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .time{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .time .num{font-size:40px;font-weight:300;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .ring .time .lbl{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-dim);margin-top:4px}
+  .pomo .controls{display:flex;gap:10px;padding:0 18px 20px;opacity:0;transition:opacity .3s var(--ease) .2s}
+  .pomo.open .controls{opacity:1}
+  .controls button{
+    flex:1;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
+    color:var(--text);font-size:13px;letter-spacing:.08em;cursor:pointer;transition:.18s var(--ease);
+  }
+  .controls button:hover{border-color:var(--brand)}
+  .controls .primary{background:var(--prism);border-color:var(--prism);color:#fff;font-weight:560}
+  .controls .primary:hover{background:var(--depth)}
+
+  /* calendar peek — same grammar: home base stays, this lifts over */
+  .cal{
+    position:absolute;left:14px;right:14px;top:64px;bottom:18px;z-index:30;border-radius:16px;
+    background:linear-gradient(180deg,#1c2748,#161d33);border:1px solid var(--line);
+    box-shadow:0 30px 80px -24px rgba(8,12,26,.92);
+    transform:translateY(14px);opacity:0;pointer-events:none;
+    transition:transform .4s var(--ease),opacity .4s var(--ease);
+    padding:18px;
+  }
+  .cal.open{transform:none;opacity:1;pointer-events:auto}
+  .cal h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--haze);margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .grid .d{aspect-ratio:1;border-radius:7px;border:1px solid var(--line);font-size:12px;
+       display:flex;align-items:flex-start;justify-content:flex-end;padding:5px;color:var(--text-dim);
+       font-variant-numeric:tabular-nums}
+  .grid .d.today{border-color:var(--prism);color:var(--haze);
+       box-shadow:inset 0 0 0 1px var(--prism)}
+  .grid .d.has::after{content:"";position:absolute}
+  .cal .back{margin-top:16px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);
+       background:transparent;color:var(--text-dim);cursor:pointer;letter-spacing:.1em;font-size:12px}
+  .cal .back:hover{color:var(--haze);border-color:var(--brand)}
+
+  .scrim{position:absolute;inset:0;background:rgba(8,11,22,.5);z-index:15;opacity:0;pointer-events:none;
+       transition:opacity .4s var(--ease)}
+  .scrim.on{opacity:1;pointer-events:auto}
+
+  ::-webkit-scrollbar{width:8px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div>
+      <h1>Rotax</h1>
+    </div>
+    <div class="date" id="date">—</div>
+    <button class="peek" id="peekBtn">俯瞰</button>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+
+  <!-- scrim sits between timeline and lifted surfaces -->
+  <div class="scrim" id="scrim"></div>
+
+  <!-- pomodoro: injected/positioned by JS as the ignited block's other self -->
+
+  <!-- calendar peek -->
+  <div class="cal" id="cal">
+    <h2>2026 / 06</h2>
+    <div class="grid" id="calGrid"></div>
+    <button class="back" id="calBack">タイムラインに戻る</button>
+  </div>
+</div>
+
+<script>
+const PLAN = [
+  {h:9,  m:0,  dur:50, t:"会津大 志願理由書 推敲",       tag:"出願"},
+  {h:10, m:0,  dur:25, t:"Rotax 遷移プロト",            tag:"v5"},
+  {h:11, m:0,  dur:25, t:"積分（合成関数）演習",          tag:"学習"},
+  {h:13, m:30, dur:25, t:"AtCoder 精進",                tag:"競プロ"},
+  {h:15, m:0,  dur:50, t:"Zism トークン整理",            tag:"design"},
+  {h:17, m:0,  dur:25, t:"英語 リスニング",              tag:"学習"},
+];
+const NOW = {h:10, m:14};
+
+const tl = document.getElementById('timeline');
+const scrim = document.getElementById('scrim');
+document.getElementById('date').textContent =
+  new Date(2026,5,19).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
+
+const HOUR_PX = 64;
+const startHour = 9, endHour = 18;
+let nowLine;
+
+function build(){
+  for(let h=startHour; h<=endHour; h++){
+    const row = document.createElement('div');
+    row.className='hour';
+    row.innerHTML = `<div class="tick">${String(h).padStart(2,'0')}:00</div><div class="lane" data-h="${h}"></div>`;
+    tl.appendChild(row);
+  }
+  PLAN.forEach((p,i)=>{
+    const lane = tl.querySelector(`.lane[data-h="${p.h}"]`);
+    const b = document.createElement('div');
+    b.className='block'; b.dataset.idx=i;
+    b.innerHTML = `<div class="edge"></div><div class="fill"></div>
+      <div class="t">${p.t}</div>
+      <div class="meta">${String(p.h).padStart(2,'0')}:${String(p.m).padStart(2,'0')} · ${p.dur}min · ${p.tag}</div>
+      <div class="live"><span class="dot"></span>進行中</div>`;
+    b.addEventListener('click',()=>ignite(b,p));
+    lane.appendChild(b);
+  });
+  nowLine = document.createElement('div');
+  nowLine.className='now';
+  const top = (NOW.h-startHour)*HOUR_PX + (NOW.m/60)*HOUR_PX + 8;
+  nowLine.style.top = top+'px';
+  tl.appendChild(nowLine);
+  tl.scrollTop = Math.max(0, top-220);
+}
+build();
+
+/* ---- ignition: the block becomes a pomodoro, FLIP from its own rect ---- */
+let pomo=null, timer=null, runningBlock=null;
+
+function ignite(block,p){
+  if(pomo) return;
+  const r = block.getBoundingClientRect();
+  const app = document.querySelector('.app').getBoundingClientRect();
+
+  block.classList.add('running');
+  runningBlock = block;
+  tl.classList.add('dimmed');
+  scrim.classList.add('on');
+
+  pomo = document.createElement('div');
+  pomo.className='pomo';
+  pomo.innerHTML = `
+    <div class="ph">
+      <div>
+        <div class="t">${p.t}</div>
+        <div class="sub">${p.tag} · 集中 ${p.dur}分</div>
+      </div>
+      <button class="close">戻す</button>
+    </div>
+    <div class="ring-wrap">
+      <div class="ring">
+        <svg width="188" height="188">
+          <circle cx="94" cy="94" r="84" stroke="#27325a" stroke-width="6" fill="none"/>
+          <circle cx="94" cy="94" r="84" stroke="#5570C5" stroke-width="6" fill="none"
+            stroke-linecap="round" stroke-dasharray="${2*Math.PI*84}" stroke-dashoffset="0" id="arc"/>
+        </svg>
+        <div class="time"><div class="num" id="num">${p.dur}:00</div><div class="lbl">focus</div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="pause">一時停止</button>
+      <button class="primary" id="done">完了してタイムラインへ</button>
+    </div>`;
+  // start at block's exact position/size
+  pomo.style.top = (r.top - app.top)+'px';
+  pomo.style.left = (r.left - app.left)+'px';
+  pomo.style.right = 'auto';
+  pomo.style.width = r.width+'px';
+  pomo.style.height = r.height+'px';
+  pomo.style.transition = 'none';
+  document.querySelector('.app').appendChild(pomo);
+
+  // target geometry
+  const targetTop = app.height*0.16, targetH = app.height*0.62;
+  requestAnimationFrame(()=>{
+    pomo.style.transition='top .5s var(--ease),left .5s var(--ease),width .5s var(--ease),height .5s var(--ease)';
+    pomo.style.top = targetTop+'px';
+    pomo.style.left = '14px';
+    pomo.style.width = (app.width-28)+'px';
+    pomo.style.height = targetH+'px';
+    requestAnimationFrame(()=>pomo.classList.add('open'));
+  });
+
+  startTimer(p, block);
+
+  pomo.querySelector('.close').onclick = ()=>collapse(block,false);
+  pomo.querySelector('#done').onclick  = ()=>collapse(block,true);
+  pomo.querySelector('#pause').onclick = (e)=>{
+    paused=!paused; e.target.textContent = paused?'再開':'一時停止';
+  };
+}
+
+let paused=false, remain=0, total=0;
+function startTimer(p,block){
+  total = p.dur*60; remain = total; paused=false;
+  const num = pomo.querySelector('#num');
+  const arc = pomo.querySelector('#arc');
+  const C = 2*Math.PI*84;
+  const fill = block.querySelector('.fill');
+  clearInterval(timer);
+  // demo speed: 1 tick ≈ 0.25s so you can watch it move
+  timer = setInterval(()=>{
+    if(paused) return;
+    remain -= 6; // fast demo
+    if(remain<=0){ remain=0; collapse(block,true); return; }
+    const mm = Math.floor(remain/60), ss = remain%60;
+    num.textContent = `${mm}:${String(ss).padStart(2,'0')}`;
+    const prog = 1-remain/total;
+    arc.style.strokeDashoffset = C*prog;
+    fill.style.width = (prog*100)+'%';
+  },250);
+}
+
+function collapse(block,completed){
+  clearInterval(timer);
+  const app = document.querySelector('.app').getBoundingClientRect();
+  const r = block.getBoundingClientRect();
+  pomo.classList.remove('open');
+  pomo.style.top = (r.top-app.top)+'px';
+  pomo.style.left = (r.left-app.left)+'px';
+  pomo.style.width = r.width+'px';
+  pomo.style.height = r.height+'px';
+  scrim.classList.remove('on');
+  tl.classList.remove('dimmed');
+  setTimeout(()=>{
+    pomo.remove(); pomo=null;
+    if(completed){
+      block.classList.remove('running');
+      block.querySelector('.fill').style.width='100%';
+      block.style.opacity='.55';
+      const meta = block.querySelector('.meta');
+      meta.textContent = '✓ 完了 · ' + meta.textContent;
+    }else{
+      block.classList.remove('running');
+      block.querySelector('.fill').style.width='0%';
+    }
+    runningBlock=null;
+  },480);
+}
+
+/* ---- calendar peek: same grammar (home base stays beneath) ---- */
+const cal = document.getElementById('cal');
+const calGrid = document.getElementById('calGrid');
+['日','月','火','水','木','金','土'].forEach(()=>{});
+function buildCal(){
+  const first = new Date(2026,5,1).getDay();
+  for(let i=0;i<first;i++){const e=document.createElement('div');e.className='d';e.style.border='none';calGrid.appendChild(e);}
+  for(let d=1;d<=30;d++){
+    const c=document.createElement('div');c.className='d';c.textContent=d;
+    if(d===19)c.classList.add('today');
+    calGrid.appendChild(c);
+  }
+}
+buildCal();
+document.getElementById('peekBtn').onclick=()=>{
+  cal.classList.add('open'); scrim.classList.add('on'); tl.classList.add('dimmed');
+};
+function closeCal(){cal.classList.remove('open');scrim.classList.remove('on');
+  if(!pomo)tl.classList.remove('dimmed');}
+document.getElementById('calBack').onclick=closeCal;
+scrim.onclick=()=>{ if(cal.classList.contains('open'))closeCal(); };
+</script>
+</body>
+</html>

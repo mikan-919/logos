@@ -43,7 +43,7 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{#if isActive}
 		<!-- ── ACTIVE: poster timer ── -->
-		<div class="flex-1 flex flex-col px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
+		<div class="flex-1 flex flex-col  justify-center px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
 
 			<!-- Title — muted, shrinks to fit -->
 			<div class="flex flex-col gap-0 shrink min-h-0 overflow-hidden" style="line-height: 0.90;">
@@ -94,7 +94,7 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{:else if tl.heroTask}
 		<!-- ── IDLE: poster — selected task rendered large ── -->
-		<div class="flex-1 flex flex-col px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
+		<div class="flex-1 flex flex-col justify-center px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
 
 			<!-- Time above -->
 			{#if tl.heroTask.start != null}
