@@ -40,6 +40,7 @@ class TimelineState {
 	// Which day the schedule column is showing. 0 = today, 1 = tomorrow, etc.
 	viewDayOffset = $state(0);
 	popoverTask = $state<{ title: string; start: number; end: number; description?: string; todos?: string[]; state?: string } | null>(null);
+	popoverPos = $state<{ x: number; y: number }>({ x: 0, y: 0 });
 
 	#clockInterval: ReturnType<typeof setInterval> | null = null;
 	#pomoInterval: ReturnType<typeof setInterval> | null = null;
@@ -77,8 +78,9 @@ class TimelineState {
 		this.selectedId = task.id;
 	};
 
-	openPopover = (task: { title: string; start: number; end: number; description?: string; todos?: string[]; state?: string }) => {
+	openPopover = (task: { title: string; start: number; end: number; description?: string; todos?: string[]; state?: string }, pos: { x: number; y: number }) => {
 		this.popoverTask = task;
+		this.popoverPos = pos;
 	};
 
 	closePopover = () => {

@@ -98,7 +98,7 @@ function nowTop() { return pct(tl.nowHour); }
 						{#each day.tasks as task}
 							<button
 								type="button"
-								onclick={() => tl.openPopover(task)}
+								onclick={(e) => { e.stopPropagation(); tl.openPopover(task, { x: e.clientX, y: e.clientY }); }}
 								class="absolute left-0.5 right-0.5 rounded-[1px] overflow-hidden px-0.5 py-px text-left
 									   hover:opacity-100 transition-opacity
 									   {day.isToday ? 'bg-[var(--accent)]' : 'bg-[var(--ink-300)] opacity-50'}"

@@ -89,10 +89,10 @@ const nowInsertIdx = $derived.by(() => {
 				<!-- Task block -->
 				<button
 					type="button"
-					onclick={() => {
+					onclick={(e) => {
 						if (!item.isClickable) return;
 						if ('state' in item.task && item.task.state !== 'done') tl.select(item.task as any);
-						tl.openPopover(item.task as any);
+						tl.openPopover(item.task as any, { x: e.clientX, y: e.clientY });
 					}}
 					disabled={!item.isClickable}
 					style="height: {item.taskHeight}px"
