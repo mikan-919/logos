@@ -1,14 +1,57 @@
 <script lang="ts">
-import { untrack } from "svelte";
-import { tl, HOUR_START, HOUR_END, HOUR_PX } from "./state.svelte";
+import { tl, HOUR_START, HOUR_END } from "./state.svelte";
 import { hhmm } from "$lib/dashboard/format";
 
-const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
-const totalHeight = (HOUR_END - HOUR_START + 1) * HOUR_PX;
+// Gap compression: proportional to hours, capped
+const GAP_PX_PER_HOUR = 28;
+const GAP_MIN = 6;
+const GAP_MAX = 56;
 
-let scrollEl: HTMLDivElement;
-$effect(() => {
-	if (scrollEl) untrack(() => { scrollEl.scrollTop = Math.max(0, tl.nowTopPx - 160); });
+// Task height: proportional to duration, with min/max
+const TASK_PX_PER_HOUR = 56;
+const TASK_MIN = 40;
+const TASK_MAX = 140;
+
+type Item = {
+	task: { id: string; start: number; end: number; title: string; state?: string };
+	gapPx: number;
+	taskHeight: number;
+	crossesMidnight: boolean;
+	isCursor: boolean;
+	isDone: boolean;
+	isClickable: boolean;
+};
+
+const items = $derived.by((): Item[] => {
+	const tasks = tl.viewDayTasks;
+	return tasks.map((task, i) => {
+		const prev = tasks[i - 1];
+		const gapHours = prev ? Math.max(0, task.start - prev.end) : Math.max(0, task.start - HOUR_START);
+		const gapPx = Math.min(Math.max(gapHours * GAP_PX_PER_HOUR, GAP_MIN), GAP_MAX);
+		const dur = Math.max(0, Math.min(task.end, HOUR_END) - Math.max(task.start, HOUR_START));
+		const taskHeight = Math.min(Math.max(dur * TASK_PX_PER_HOUR, TASK_MIN), TASK_MAX);
+		return {
+			task,
+			gapPx,
+			taskHeight,
+			crossesMidnight: task.end > 24,
+			isCursor: tl.viewDayOffset === 0 && tl.selected?.id === task.id && !tl.ignited,
+			isDone: 'state' in task && task.state === "done",
+			isClickable: tl.viewDayOffset === 0 && !('state' in task && task.state === "done"),
+		};
+	});
+});
+
+// NOW: index after which the now-line should appear
+const nowInsertIdx = $derived.by(() => {
+	if (tl.viewDayOffset !== 0) return -1;
+	const h = tl.nowHour;
+	const tasks = tl.viewDayTasks;
+	let idx = -1;
+	for (let i = 0; i < tasks.length; i++) {
+		if (tasks[i].start <= h) idx = i;
+	}
+	return idx;
 });
 </script>
 
@@ -20,53 +63,50 @@ $effect(() => {
 		</span>
 	</div>
 
-	<div bind:this={scrollEl} class="flex-1 overflow-y-auto no-scrollbar relative">
-		<div class="relative" style="height: {totalHeight + 48}px;">
+	<div class="flex-1 overflow-y-auto no-scrollbar px-2 pt-3 pb-6">
 
-			<!-- Hour grid -->
-			{#each hours as h}
-				<div class="absolute left-0 right-0 flex pointer-events-none"
-					style="top: {(h - HOUR_START) * HOUR_PX}px; height: {HOUR_PX}px;">
-					<div class="w-11 shrink-0 flex justify-end items-start pr-2 pt-2">
-						<span class="font-mono text-[10.5px] tabular-nums text-[var(--ink-500)]">
-							{String(h).padStart(2, "0")}
-						</span>
+		{#each items as item, i (item.task.id)}
+			<!-- NOW line: appears between the last started task and the next -->
+			{#if tl.viewDayOffset === 0 && nowInsertIdx === i - 1}
+				<div class="flex items-center gap-2 my-1">
+					<span class="font-mono text-[9px] text-[var(--accent)] tabular-nums w-10 text-right shrink-0">
+						{hhmm(tl.nowHour)}
+					</span>
+					<div class="flex-1 border-t-2 border-[var(--accent)] relative">
+						<div class="absolute -left-[3px] -top-[4px] w-[6px] h-[6px] rounded-full bg-[var(--accent)]"></div>
 					</div>
-					<div class="flex-1 border-t border-[var(--line)]"></div>
 				</div>
-			{/each}
+			{/if}
 
-			<!-- Task blocks -->
-			{#each tl.viewDayTasks as task (task.id)}
-				{@const crossesMidnight = task.end > 24}
-				{@const startsYesterday = task.start < HOUR_START}
-				{@const displayStart = Math.max(task.start, HOUR_START)}
-				{@const displayEnd = Math.min(task.end, HOUR_END)}
-				{@const top = (displayStart - HOUR_START) * HOUR_PX + 2}
-				{@const height = Math.max(40, (displayEnd - displayStart) * HOUR_PX - 6)}
-				{@const isCursor = tl.viewDayOffset === 0 && tl.selected?.id === task.id && !tl.ignited}
-				{@const isDone = 'state' in task && task.state === "done"}
-				{@const isClickable = tl.viewDayOffset === 0 && !isDone}
+			<!-- Gap + task row -->
+			<div style="margin-top: {item.gapPx}px" class="flex items-start gap-2">
+
+				<!-- Time anchor -->
+				<span class="font-mono text-[10px] tabular-nums text-[var(--ink-300)] w-10 text-right shrink-0 pt-[10px] leading-none">
+					{hhmm(item.task.start)}
+				</span>
+
+				<!-- Task block -->
 				<button
 					type="button"
-					onclick={() => isClickable && 'state' in task && tl.select(task as any)}
-					disabled={!isClickable}
-					class="absolute left-11 right-1.5 text-left transition-all
-						   {isClickable ? 'cursor-pointer' : 'cursor-default'}
-						   {isDone ? 'opacity-35' : ''}"
-					style="top: {top}px; height: {height}px;">
+					onclick={() => item.isClickable && 'state' in item.task && tl.select(item.task as any)}
+					disabled={!item.isClickable}
+					style="height: {item.taskHeight}px"
+					class="flex-1 min-w-0 text-left transition-all
+						   {item.isClickable ? 'cursor-pointer' : 'cursor-default'}
+						   {item.isDone ? 'opacity-35' : ''}">
 
 					<div class="relative h-full overflow-hidden border transition-all
-								{isCursor
+								{item.isCursor
 									? 'bg-[var(--accent)] border-[var(--accent)]'
-									: isDone
+									: item.isDone
 										? 'bg-transparent border-[var(--line)]'
 										: tl.viewDayOffset !== 0
 											? 'bg-[var(--paper)] border-[var(--line)]'
 											: 'bg-[var(--surface)] border-[var(--line-strong)] hover:border-[var(--accent)]'}">
 
 						<!-- Left accent bar -->
-						{#if !isCursor && !isDone}
+						{#if !item.isCursor && !item.isDone}
 							<div class="absolute left-0 top-0 bottom-0 w-[3px]
 										{tl.viewDayOffset !== 0 ? 'bg-[var(--line)]' : 'bg-[var(--line-strong)]'}">
 							</div>
@@ -74,39 +114,40 @@ $effect(() => {
 
 						<div class="relative pl-3 pr-2 py-2 h-full flex flex-col justify-center gap-0.5">
 							<p class="text-[12px] leading-[1.3] font-medium
-									  {isCursor ? 'text-white' : isDone ? 'line-through text-[var(--ink-300)]' : tl.viewDayOffset !== 0 ? 'text-[var(--ink-300)]' : 'text-[var(--ink)]'}
-									  {height < 44 ? 'truncate' : ''}">
-								{task.title}
+									  {item.isCursor ? 'text-white' : item.isDone ? 'line-through text-[var(--ink-300)]' : tl.viewDayOffset !== 0 ? 'text-[var(--ink-300)]' : 'text-[var(--ink)]'}
+									  {item.taskHeight < 44 ? 'truncate' : ''}">
+								{item.task.title}
 							</p>
-							{#if height > 46}
+							{#if item.taskHeight > 56}
 								<p class="font-mono text-[10px] tracking-[0.04em] tabular-nums
-										  {isCursor ? 'text-white/70' : 'text-[var(--ink-300)]'}">
-									{hhmm(task.start)} – {hhmm(task.end)}
+										  {item.isCursor ? 'text-white/70' : 'text-[var(--ink-300)]'}">
+									{hhmm(item.task.start)} – {hhmm(item.task.end)}
 								</p>
 							{/if}
-							{#if crossesMidnight && height > 30}
+							{#if item.crossesMidnight}
 								<p class="font-mono text-[9px] tracking-[0.06em]
-										  {isCursor ? 'text-white/60' : 'text-[var(--ink-300)]'}">
+										  {item.isCursor ? 'text-white/60' : 'text-[var(--ink-300)]'}">
 									↓ 翌
 								</p>
 							{/if}
 						</div>
 					</div>
 				</button>
-			{/each}
+			</div>
+		{/each}
 
-			<!-- NOW line (today only) -->
-			{#if tl.viewDayOffset === 0 && tl.nowHour >= HOUR_START && tl.nowHour <= HOUR_END}
-				<div class="absolute left-11 right-0 pointer-events-none z-10"
-					style="top: {tl.nowTopPx}px;">
-					<div class="relative border-t-2 border-[var(--accent)]"
-						style="box-shadow: 0 0 8px rgba(241,83,31,0.25)">
-						<div class="absolute -left-[4px] -top-[4px] w-[8px] h-[8px] rounded-full bg-[var(--accent)]"></div>
-					</div>
+		<!-- NOW line at end if after all tasks -->
+		{#if tl.viewDayOffset === 0 && nowInsertIdx === items.length - 1}
+			<div class="flex items-center gap-2 mt-2">
+				<span class="font-mono text-[9px] text-[var(--accent)] tabular-nums w-10 text-right shrink-0">
+					{hhmm(tl.nowHour)}
+				</span>
+				<div class="flex-1 border-t-2 border-[var(--accent)] relative">
+					<div class="absolute -left-[3px] -top-[4px] w-[6px] h-[6px] rounded-full bg-[var(--accent)]"></div>
 				</div>
-			{/if}
+			</div>
+		{/if}
 
-		</div>
 	</div>
 
 </div>
