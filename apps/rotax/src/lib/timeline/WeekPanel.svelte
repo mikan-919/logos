@@ -1,72 +1,122 @@
 <script lang="ts">
-import { tl } from "./state.svelte";
+import { tl, HOUR_START, HOUR_END, fakeDayTasks } from "./state.svelte";
 
-// Generate next 7 days from today
-function weekDays(now: Date) {
-	const days = [];
-	const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MINI_PX = 6; // px per hour in mini timeline
+const TOTAL_HOURS = HOUR_END - HOUR_START;
+const GRID_H = TOTAL_HOURS * MINI_PX; // 102px
+
+// Hour labels to show (every 3h)
+const hourMarks = [7, 10, 13, 16, 19, 22];
+
+const days = $derived.by(() => {
+	const out = [];
 	for (let i = 0; i < 7; i++) {
-		const d = new Date(now);
+		const d = new Date(tl.now);
 		d.setDate(d.getDate() + i);
-		days.push({
+		out.push({
+			offset: i,
 			label: DAY_LABELS[d.getDay()],
 			date: d.getDate(),
 			isToday: i === 0,
+			tasks: i === 0
+				? tl.scheduled.map(t => ({ start: t.start, end: t.end }))
+				: fakeDayTasks(i).map(t => ({ start: t.start, end: t.end })),
 		});
 	}
-	return days;
-}
+	return out;
+});
 
-// Rough task count per day — today uses real data, others are seeded from
-// the same tasks shifted deterministically (visual filler only).
-function taskDots(dayIndex: number, now: Date): number {
-	if (dayIndex === 0) return tl.scheduled.length;
-	// deterministic fake: vary 1–4 dots based on day
-	return ((dayIndex * 3 + now.getDay()) % 4) + 1;
+function taskTop(start: number) {
+	return (start - HOUR_START) * MINI_PX;
 }
-
-const days = $derived(weekDays(tl.now));
+function taskHeight(start: number, end: number) {
+	return Math.max(2, (end - start) * MINI_PX - 1);
+}
 </script>
 
-<!--
-  WeekPanel: rough 7-day overview, low visual priority.
-  Shows existence of tasks per day, not details.
--->
 <div class="flex flex-col h-full border-l border-[var(--line)] min-w-0 bg-[var(--paper)]">
 
-	<div class="px-4 h-10 flex items-center border-b border-[var(--line)] shrink-0">
-		<span class="font-mono text-[9.5px] tracking-[0.12em] uppercase text-[var(--ink-300)]">
-			Week
-		</span>
+	<!-- Header bar -->
+	<div class="px-3 h-11 flex items-center border-b border-[var(--line)] shrink-0">
+		<span class="font-mono text-[10px] tracking-[0.12em] uppercase text-[var(--ink-300)]">Week</span>
 	</div>
 
-	<div class="flex-1 overflow-y-auto no-scrollbar py-1">
-		{#each days as day, i}
-			<div class="flex items-start gap-2 px-4 py-2.5 border-b border-[var(--line)]
-						{day.isToday ? '' : 'opacity-40'}">
+	<div class="flex-1 overflow-hidden flex min-h-0">
 
-				<!-- Day label -->
-				<div class="w-8 shrink-0 flex flex-col items-end pt-0.5">
-					<span class="font-mono text-[9px] tracking-[0.08em] uppercase
-								 {day.isToday ? 'text-[var(--accent)]' : 'text-[var(--ink-300)]'}">
-						{day.label}
-					</span>
-					<span class="font-mono text-[9px] tabular-nums text-[var(--ink-300)]">
-						{day.date}
-					</span>
+		<!-- Hour axis -->
+		<div class="w-7 shrink-0 relative border-r border-[var(--line)] mt-9">
+			{#each hourMarks as h}
+				<div class="absolute right-1 leading-none"
+					style="top: {(h - HOUR_START) * MINI_PX - 4}px;">
+					<span class="font-mono text-[8px] tabular-nums text-[var(--ink-300)]">{h}</span>
 				</div>
+			{/each}
+		</div>
 
-				<!-- Task dots -->
-				<div class="flex flex-wrap gap-1 pt-1.5">
-					{#each Array(taskDots(i, tl.now)) as _}
-						<div class="w-1.5 h-1.5 rounded-full
-									{day.isToday ? 'bg-[var(--ink-500)]' : 'bg-[var(--ink-300)]'}">
-						</div>
-					{/each}
-				</div>
+		<!-- Day columns -->
+		<div class="flex-1 overflow-x-auto flex min-w-0">
+			{#each days as day}
+				{@const isSelected = tl.viewDayOffset === day.offset}
+				<button
+					type="button"
+					onclick={() => tl.setViewDay(day.offset)}
+					class="flex-1 min-w-[52px] flex flex-col border-r border-[var(--line)] last:border-r-0
+						   transition-colors {isSelected ? 'bg-[var(--surface)]' : 'hover:bg-[var(--surface)]/50'}">
 
-			</div>
-		{/each}
+					<!-- Day header -->
+					<div class="h-9 flex flex-col items-center justify-center shrink-0 border-b border-[var(--line)]
+								{isSelected ? 'border-b-[var(--accent)]' : ''}">
+						<span class="font-mono text-[8.5px] tracking-[0.06em] uppercase
+									 {day.isToday ? 'text-[var(--accent)]' : 'text-[var(--ink-300)]'}
+									 {isSelected ? 'font-bold' : ''}">
+							{day.label}
+						</span>
+						<span class="font-mono text-[10px] tabular-nums
+									 {day.isToday ? 'text-[var(--accent)] font-medium' : 'text-[var(--ink-500)]'}
+									 {isSelected ? 'font-bold' : ''}">
+							{day.date}
+						</span>
+					</div>
+
+					<!-- Mini timeline -->
+					<div class="relative w-full" style="height: {GRID_H}px; flex-shrink: 0;">
+
+						<!-- Hour lines -->
+						{#each hourMarks as h}
+							<div class="absolute left-0 right-0 border-t border-[var(--line)]"
+								style="top: {(h - HOUR_START) * MINI_PX}px; opacity: 0.5;"></div>
+						{/each}
+
+						<!-- Task blocks -->
+						{#each day.tasks as task}
+							<div class="absolute left-0.5 right-0.5 rounded-[1px]
+										{day.isToday ? 'bg-[var(--accent)]' : 'bg-[var(--ink-300)]'}
+										{!day.isToday ? 'opacity-50' : ''}"
+								style="top: {taskTop(task.start)}px; height: {taskHeight(task.start, task.end)}px;">
+							</div>
+						{/each}
+
+						<!-- NOW line (today only) -->
+						{#if day.isToday && tl.nowHour >= HOUR_START && tl.nowHour <= HOUR_END}
+							<div class="absolute left-0 right-0 border-t border-[var(--accent)] pointer-events-none"
+								style="top: {(tl.nowHour - HOUR_START) * MINI_PX}px; opacity: 0.7;">
+							</div>
+						{/if}
+
+					</div>
+
+				</button>
+			{/each}
+		</div>
+
+	</div>
+
+	<!-- Selected day label -->
+	<div class="px-3 h-8 flex items-center border-t border-[var(--line)] shrink-0">
+		<span class="font-mono text-[9px] tracking-[0.06em] text-[var(--ink-300)]">
+			{tl.viewDateLabel}
+		</span>
 	</div>
 
 </div>

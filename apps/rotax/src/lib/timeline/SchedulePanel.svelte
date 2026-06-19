@@ -13,8 +13,10 @@ $effect(() => {
 
 <div class="flex flex-col h-full border-l border-[var(--line)] min-w-0">
 
-	<div class="px-4 h-11 flex items-center border-b border-[var(--line)] shrink-0">
-		<span class="font-mono text-[10px] tracking-[0.12em] uppercase text-[var(--ink-500)]">Today</span>
+	<div class="px-4 h-11 flex items-center gap-2 border-b border-[var(--line)] shrink-0">
+		<span class="font-mono text-[10px] tracking-[0.12em] uppercase text-[var(--ink-500)]">
+			{tl.viewDayOffset === 0 ? 'Today' : tl.viewDateLabel}
+		</span>
 	</div>
 
 	<div bind:this={scrollEl} class="flex-1 overflow-y-auto no-scrollbar relative">
@@ -34,17 +36,19 @@ $effect(() => {
 			{/each}
 
 			<!-- Task blocks -->
-			{#each tl.scheduled as task (task.id)}
+			{#each tl.viewDayTasks as task (task.id)}
 				{@const top = (task.start - HOUR_START) * HOUR_PX + 2}
 				{@const height = Math.max(40, (task.end - task.start) * HOUR_PX - 6)}
-				{@const isCursor = tl.selected?.id === task.id && !tl.ignited}
-				{@const isDone = task.state === "done"}
+				{@const isCursor = tl.viewDayOffset === 0 && tl.selected?.id === task.id && !tl.ignited}
+				{@const isDone = 'state' in task && task.state === "done"}
+				{@const isClickable = tl.viewDayOffset === 0 && !isDone}
 				<button
 					type="button"
-					onclick={() => !isDone && tl.select(task)}
-					disabled={isDone}
+					onclick={() => isClickable && 'state' in task && tl.select(task as any)}
+					disabled={!isClickable}
 					class="absolute left-11 right-1.5 text-left transition-all
-						   {isDone ? 'cursor-default opacity-35' : 'cursor-pointer'}"
+						   {isClickable ? 'cursor-pointer' : 'cursor-default'}
+						   {isDone ? 'opacity-35' : ''}"
 					style="top: {top}px; height: {height}px;">
 
 					<div class="relative h-full overflow-hidden border transition-all
@@ -52,16 +56,20 @@ $effect(() => {
 									? 'bg-[var(--accent)] border-[var(--accent)]'
 									: isDone
 										? 'bg-transparent border-[var(--line)]'
-										: 'bg-[var(--surface)] border-[var(--line-strong)] hover:border-[var(--accent)]'}">
+										: tl.viewDayOffset !== 0
+											? 'bg-[var(--paper)] border-[var(--line)]'
+											: 'bg-[var(--surface)] border-[var(--line-strong)] hover:border-[var(--accent)]'}">
 
-						<!-- Left accent bar (non-selected) -->
+						<!-- Left accent bar -->
 						{#if !isCursor && !isDone}
-							<div class="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--line-strong)]"></div>
+							<div class="absolute left-0 top-0 bottom-0 w-[3px]
+										{tl.viewDayOffset !== 0 ? 'bg-[var(--line)]' : 'bg-[var(--line-strong)]'}">
+							</div>
 						{/if}
 
 						<div class="relative pl-3 pr-2 py-2 h-full flex flex-col justify-center gap-0.5">
 							<p class="text-[12px] leading-[1.3] font-medium
-									  {isCursor ? 'text-white' : isDone ? 'line-through text-[var(--ink-300)]' : 'text-[var(--ink)]'}
+									  {isCursor ? 'text-white' : isDone ? 'line-through text-[var(--ink-300)]' : tl.viewDayOffset !== 0 ? 'text-[var(--ink-300)]' : 'text-[var(--ink)]'}
 									  {height < 44 ? 'truncate' : ''}">
 								{task.title}
 							</p>
@@ -76,8 +84,8 @@ $effect(() => {
 				</button>
 			{/each}
 
-			<!-- NOW line -->
-			{#if tl.nowHour >= HOUR_START && tl.nowHour <= HOUR_END}
+			<!-- NOW line (today only) -->
+			{#if tl.viewDayOffset === 0 && tl.nowHour >= HOUR_START && tl.nowHour <= HOUR_END}
 				<div class="absolute left-11 right-0 pointer-events-none z-10"
 					style="top: {tl.nowTopPx}px;">
 					<div class="relative border-t-2 border-[var(--accent)]"

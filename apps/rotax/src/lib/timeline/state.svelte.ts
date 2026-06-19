@@ -5,6 +5,28 @@ export const HOUR_START = 7;
 export const HOUR_END = 24;
 export const HOUR_PX = 80;
 
+export type FakeTask = { id: string; start: number; end: number; title: string };
+
+export function fakeDayTasks(dayOffset: number): FakeTask[] {
+	const s = dayOffset * 13;
+	const titles = ["Meeting", "Deep work", "Review", "Planning", "Break", "Reading", "Writing"];
+	const tasks: FakeTask[] = [];
+	let t = 8 + (s % 3);
+	const count = 3 + (s % 3);
+	for (let i = 0; i < count; i++) {
+		const dur = 0.5 + ((s + i * 5) % 4) * 0.5;
+		if (t + dur > 23) break;
+		tasks.push({
+			id: `fake-${dayOffset}-${i}`,
+			start: t,
+			end: t + dur,
+			title: titles[(s + i) % titles.length],
+		});
+		t += dur + 0.5 + ((s + i * 3) % 2);
+	}
+	return tasks;
+}
+
 class TimelineState {
 	tasks = $state<Task[]>(seedTasks());
 	now = $state(new Date());
@@ -14,9 +36,9 @@ class TimelineState {
 	paused = $state(false);
 	ignited = $state<Task | null>(null);
 	calOpen = $state(false);
-	// The cursor — which task the user has selected/is looking at.
-	// Persists across columns; the center always renders this task.
 	selectedId = $state<string | null>(null);
+	// Which day the schedule column is showing. 0 = today, 1 = tomorrow, etc.
+	viewDayOffset = $state(0);
 
 	#clockInterval: ReturnType<typeof setInterval> | null = null;
 	#pomoInterval: ReturnType<typeof setInterval> | null = null;
@@ -53,6 +75,21 @@ class TimelineState {
 	select = (task: Task) => {
 		this.selectedId = task.id;
 	};
+
+	setViewDay = (offset: number) => {
+		this.viewDayOffset = offset;
+	};
+
+	viewDateLabel = $derived.by(() => {
+		const d = new Date(this.now);
+		d.setDate(d.getDate() + this.viewDayOffset);
+		return d.toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" });
+	});
+
+	viewDayTasks = $derived.by(() => {
+		if (this.viewDayOffset === 0) return this.scheduled as Array<{ id: string; start: number; end: number; title: string; state?: string }>;
+		return fakeDayTasks(this.viewDayOffset);
+	});
 
 	nowHour = $derived(
 		this.now.getHours() +
