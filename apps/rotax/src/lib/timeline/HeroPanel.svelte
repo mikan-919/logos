@@ -96,36 +96,40 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{:else if tl.heroTask}
 		<!-- ── IDLE: poster — selected task rendered large ── -->
-		<div class="flex-1 flex flex-col px-10 py-[8%] min-h-0 justify-between overflow-hidden">
+		<div class="flex-1 flex flex-col px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
 
 			<!-- Time above -->
-			<span class="font-mono text-[13px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums">
-				{tl.heroTask.start != null ? hhmm(tl.heroTask.start) : ''}
-			</span>
+			{#if tl.heroTask.start != null}
+				<span class="font-mono text-[12px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums shrink-0">
+					{hhmm(tl.heroTask.start)}
+				</span>
+			{/if}
 
-			<!-- Poster title -->
-			<div class="flex flex-col gap-0 shrink min-h-0 overflow-hidden" style="line-height: 0.92;">
+			<!-- Poster title — shrinks to fit, clips at bottom if truly no room -->
+			<div class="flex flex-col gap-0 shrink min-h-0 overflow-hidden" style="line-height: 0.90;">
 				{#each lines as line}
-					<span class="text-[clamp(28px,4vw,72px)] font-bold tracking-[-0.03em]
-								 text-[var(--ink)] uppercase leading-[0.92]">
+					<span class="text-[clamp(22px,3.5vw,72px)] font-bold tracking-[-0.03em]
+								 text-[var(--ink)] uppercase leading-[0.90]">
 						{line}
 					</span>
 				{/each}
 			</div>
 
-			<!-- Time below + CTA -->
-			<div class="flex flex-col gap-4 shrink-0">
-				<span class="font-mono text-[13px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums">
-					{tl.heroTask.end != null ? hhmm(tl.heroTask.end) : ''}
+			<!-- Time below -->
+			{#if tl.heroTask.end != null}
+				<span class="font-mono text-[12px] tracking-[0.08em] text-[var(--ink-300)] tabular-nums shrink-0">
+					{hhmm(tl.heroTask.end)}
 				</span>
-				<button type="button" onclick={() => tl.ignite(tl.heroTask!)}
-					class="w-full max-w-xs py-4 bg-[var(--accent)] text-white font-mono text-[13px]
-						   tracking-[0.10em] uppercase hover:bg-[var(--accent-hover)]
-						   transition-colors flex items-center justify-center gap-3">
-					<span class="text-[18px] leading-none">▶</span>
-					今すぐ開始
-				</button>
-			</div>
+			{/if}
+
+			<!-- CTA -->
+			<button type="button" onclick={() => tl.ignite(tl.heroTask!)}
+				class="shrink-0 w-full max-w-xs py-3 bg-[var(--accent)] text-white font-mono text-[12px]
+					   tracking-[0.10em] uppercase hover:bg-[var(--accent-hover)]
+					   transition-colors flex items-center justify-center gap-3">
+				<span class="text-[16px] leading-none">▶</span>
+				今すぐ開始
+			</button>
 
 		</div>
 
