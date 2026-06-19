@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+Antique:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* UDEV Gothic NF (JetBrains Mono + BIZ UD Gothic), self-hosted from static/fonts.
+   v2.2.0 — https://github.com/yuru7/udev-gothic */
+@font-face {
+  font-family: "UDEV Gothic";
+  src: url("/fonts/UDEVGothicNF-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Zen Kaku Gothic Antique", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@layer theme {
+  :root, :host {
+    /* Logos design tokens — single source of truth, compiled from DESIGN.md.
+       The ground is warm monochrome; meaning lives in the appearances, so a
+       lone scarce accent carries all signal (A1/A2). */
+
+    /* Ground & ink ramp (A1) */
+    --paper: #F7F5F1;        /* colors.background — warm off-white, never pure white */
+    --paper-pure: #FFFFFF;   /* colors.surface */
+    --ink: #0E0E0C;          /* colors.primary / on-surface — warm near-black */
+    --ink-700: #3A3A37;      /* colors.primary-700 — secondary text */
+    --ink-500: #6E6E69;      /* colors.primary-500 / muted — meta text */
+    --ink-300: #A8A8A2;      /* colors.primary-300 — disabled / micro-labels */
+
+    /* Hairlines do the dividing work shadows are forbidden (A5/A6) */
+    --line: #DCDAD3;         /* colors.line */
+    --line-strong: #C2C0B8;  /* colors.line-strong — the ground line */
+
+    /* Inverted "night" ground (A10) */
+    --surface-dark: #0E0E0C;
+    --surface-dark-2: #1A1A18;
+
+    /* The single scarce accent: the grounding in focus, <=5% of screen (A2) */
+    --accent: #F1531F;       /* colors.accent */
+    --accent-hover: #D8430F; /* colors.accent-hover */
+    --accent-soft: #FBE2D6;  /* colors.accent-soft */
+    --accent-ink: #FFFFFF;   /* colors.on-accent */
+
+    /* Desaturated semantics so they never rival the accent (A2) */
+    --positive: #2E6F4E;     /* colors.positive */
+    --warning: #B7791F;      /* colors.warning */
+    --danger: #C2331B;       /* colors.danger */
+
+    /* Three voices stage the noumenon/phenomenon split (A3/A4) */
+    --font-display: "Zen Kaku Gothic Antique", sans-serif;
+    --font-text: "Zen Kaku Gothic Antique", sans-serif;
+    --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", monospace;
+
+    /* 4px base scale; generous voids prove a thin core (A8) */
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+
+    /* Dual radius: square record, soft chrome (A9). rounded.none = 0, used raw */
+    --radius-sm: 8px; --radius-md: 16px; --radius-lg: 24px; --radius-full: 9999px;
+
+    --border-hairline: 1px solid var(--line);
+    --border-strong: 1px solid var(--line-strong);
+
+    --ease: cubic-bezier(.2,.0,.0,1);
+    --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 360ms;
+
+    color-scheme: light;
+  }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Hide scrollbars while keeping scroll behaviour (used by TaskPool, Trajectory, detail overlay). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
