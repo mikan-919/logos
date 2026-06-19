@@ -63,7 +63,7 @@ const nowInsertIdx = $derived.by(() => {
 		</span>
 	</div>
 
-	<div class="flex-1 overflow-y-auto no-scrollbar px-2 pt-3 pb-6">
+	<div class="flex-1 overflow-y-auto no-scrollbar px-2 pt-3 pb-16">
 
 		{#each items as item, i (item.task.id)}
 			<!-- NOW line: appears between the last started task and the next -->

@@ -86,7 +86,7 @@ function nowTop() { return pct(tl.nowHour); }
 					</button>
 
 					<!-- Mini timeline — fills remaining height, percentage-positioned -->
-					<div class="flex-1 relative min-h-0 w-full">
+					<div class="flex-1 relative w-full overflow-hidden">
 
 						<!-- Hour lines -->
 						{#each hourMarks as h}
