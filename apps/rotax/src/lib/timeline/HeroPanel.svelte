@@ -42,43 +42,41 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 	</div>
 
 	{#if isActive}
-		<!-- ── ACTIVE: poster timer — same visual language as idle ── -->
-		<div class="flex-1 flex flex-col px-10 pt-[10%] min-h-0 gap-8 overflow-hidden">
+		<!-- ── ACTIVE: poster timer ── -->
+		<div class="flex-1 flex flex-col px-10 pt-6 pb-6 min-h-0 gap-3 overflow-hidden">
 
-			<!-- Title lines stay, but smaller / muted -->
-			<div class="flex flex-col gap-0" style="line-height: 0.92;">
+			<!-- Title — muted, shrinks to fit -->
+			<div class="flex flex-col gap-0 shrink min-h-0 overflow-hidden" style="line-height: 0.90;">
 				{#each lines as line}
-					<span class="text-[clamp(28px,3.5vw,52px)] font-bold tracking-[-0.03em]
-								 uppercase leading-[0.92]
+					<span class="text-[clamp(16px,2.5vw,40px)] font-bold tracking-[-0.03em]
+								 uppercase leading-[0.90]
 								 {tl.paused ? 'text-[var(--ink-300)]' : 'text-[var(--ink-500)]'}">
 						{line}
 					</span>
 				{/each}
 			</div>
 
-			<!-- Countdown — same typographic scale as the poster title -->
-			<div class="relative flex flex-col gap-2">
-				<!-- thin progress arc behind the number (decorative, not primary) -->
-				<svg class="absolute -left-2 -top-4 opacity-20 -rotate-90"
-					width="180" height="180" viewBox="0 0 180 180" style="pointer-events:none">
-					<circle cx="90" cy="90" r="80" stroke="var(--accent)" stroke-width="3" fill="none"
-						stroke-dasharray="{2 * Math.PI * 80}"
-						stroke-dashoffset="{2 * Math.PI * 80 * (1 - tl.pomoProgress)}"
+			<!-- Countdown -->
+			<div class="relative shrink-0 flex flex-col gap-1">
+				<svg class="absolute -left-2 -top-3 opacity-20 -rotate-90"
+					width="140" height="140" viewBox="0 0 140 140" style="pointer-events:none">
+					<circle cx="70" cy="70" r="62" stroke="var(--accent)" stroke-width="3" fill="none"
+						stroke-dasharray="{2 * Math.PI * 62}"
+						stroke-dashoffset="{2 * Math.PI * 62 * (1 - tl.pomoProgress)}"
 						style="transition: stroke-dashoffset 0.9s linear"/>
 				</svg>
-
-				<span class="font-mono text-[clamp(52px,6.5vw,88px)] leading-none tracking-[-0.04em]
+				<span class="font-mono text-[clamp(36px,5vw,80px)] leading-none tracking-[-0.04em]
 							 tabular-nums {tl.paused ? 'text-[var(--ink-300)]' : 'text-[var(--ink)]'}">
 					{tl.pomoDisplay}
 				</span>
-				<span class="font-mono text-[11px] tracking-[0.20em] uppercase
+				<span class="font-mono text-[10px] tracking-[0.20em] uppercase
 							 {tl.paused ? 'text-[var(--ink-300)]' : 'text-[var(--accent)]'}">
 					{tl.paused ? 'paused' : 'focus'}
 				</span>
 			</div>
 
-			<!-- Controls — same width/style as idle CTA -->
-			<div class="flex gap-2 max-w-xs">
+			<!-- Controls -->
+			<div class="flex gap-2 max-w-xs shrink-0">
 				<button type="button" onclick={tl.togglePause}
 					class="flex-1 py-3 border border-[var(--line)] font-mono text-[11px]
 						   tracking-[0.08em] uppercase text-[var(--ink-500)]
