@@ -35,7 +35,7 @@ function taskHeight(start: number, end: number) {
 }
 </script>
 
-<div class="flex flex-col h-full border-l border-[var(--line)] min-w-0 bg-[var(--paper)]">
+<div class="flex flex-col h-full border-l border-[var(--line)] min-w-0 bg-[var(--paper)] opacity-70 hover:opacity-100 transition-opacity duration-300">
 
 	<!-- Header bar -->
 	<div class="px-3 h-11 flex items-center border-b border-[var(--line)] shrink-0">
