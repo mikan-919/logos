@@ -1,4 +1,5 @@
 import { seedEntities, type Entity, type Component, type Ref } from "./seed";
+export { archetypeColor, resolveArchetype, isKnownArchetype } from "./archetypes";
 
 // Derived ref with direction context — used in RefsPanel
 export type DirectedRef = Ref & {
@@ -6,17 +7,6 @@ export type DirectedRef = Ref & {
 	fromEntityId: string;
 	fromArchetype: string;
 };
-
-// Archetype → accent color mapping (DESIGN.md tokens + semantic extensions)
-export const ARCHETYPE_COLOR: Record<string, string> = {
-	TASK: "var(--accent)",
-	PROJECT: "var(--positive)",
-	PERSON: "var(--warning)",
-};
-
-export function archetypeColor(archetype: string): string {
-	return ARCHETYPE_COLOR[archetype] ?? "var(--ink-300)";
-}
 
 class EntityState {
 	entities = $state<Entity[]>(seedEntities());

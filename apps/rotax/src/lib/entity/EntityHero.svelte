@@ -1,5 +1,5 @@
 <script lang="ts">
-import { entity, archetypeColor } from "./state.svelte";
+import { entity, archetypeColor, isKnownArchetype } from "./state.svelte";
 </script>
 
 <!--
@@ -77,7 +77,7 @@ import { entity, archetypeColor } from "./state.svelte";
         <!-- archetype below the node -->
         <span class="absolute top-full mt-1.5 font-mono text-[9px] tracking-[0.08em] uppercase"
           style="color: {color}; opacity: 0.7">
-          {entity.focused.archetype}
+          {entity.focused.archetype}{!isKnownArchetype(entity.focused.archetype) ? ' ?' : ''}
           {#if isActive}<span class="ml-1 opacity-100">· NOW</span>{/if}
         </span>
       </div>
