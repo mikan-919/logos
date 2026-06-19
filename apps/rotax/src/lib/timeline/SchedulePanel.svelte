@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { tl, HOUR_START, HOUR_END, HOUR_PX } from "./state.svelte";
 import { hhmm } from "$lib/dashboard/format";
 
@@ -7,7 +8,7 @@ const totalHeight = (HOUR_END - HOUR_START + 1) * HOUR_PX;
 
 let scrollEl: HTMLDivElement;
 $effect(() => {
-	if (scrollEl) scrollEl.scrollTop = Math.max(0, tl.nowTopPx - 160);
+	if (scrollEl) untrack(() => { scrollEl.scrollTop = Math.max(0, tl.nowTopPx - 160); });
 });
 </script>
 
