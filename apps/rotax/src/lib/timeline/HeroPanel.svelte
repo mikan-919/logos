@@ -43,7 +43,7 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{#if isActive}
 		<!-- ── ACTIVE: poster timer — same visual language as idle ── -->
-		<div class="flex-1 flex flex-col justify-center px-10 min-h-0 gap-8">
+		<div class="flex-1 flex flex-col px-10 pt-[10%] min-h-0 gap-8 overflow-hidden">
 
 			<!-- Title lines stay, but smaller / muted -->
 			<div class="flex flex-col gap-0" style="line-height: 0.92;">
@@ -96,7 +96,7 @@ const lines = $derived(tl.heroTask ? posterLines(tl.heroTask.title) : []);
 
 	{:else if tl.heroTask}
 		<!-- ── IDLE: poster — selected task rendered large ── -->
-		<div class="flex-1 flex flex-col justify-center px-10 min-h-0 gap-8">
+		<div class="flex-1 flex flex-col px-10 pt-[10%] min-h-0 gap-8 overflow-hidden">
 
 			<!-- Time above -->
 			{#if tl.heroTask.start != null}

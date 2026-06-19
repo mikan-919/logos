@@ -3,19 +3,19 @@ import { tl } from "$lib/timeline/state.svelte";
 import BacklogPanel from "$lib/timeline/BacklogPanel.svelte";
 import HeroPanel from "$lib/timeline/HeroPanel.svelte";
 import SchedulePanel from "$lib/timeline/SchedulePanel.svelte";
+import WeekPanel from "$lib/timeline/WeekPanel.svelte";
 import CalendarPeek from "$lib/timeline/CalendarPeek.svelte";
 
 $effect(() => tl.startClocks());
 </script>
 
 <!--
-  3-column layout  (B案)
-  ┌──────────────────────────────────────────────────┐
-  │ Rotax                          2026-06-19 Thu 俯瞰│  ← top bar (full width)
-  ├────────────┬──────────────────┬──────────────────┤
-  │  BACKLOG   │   hero + pomo    │   TODAY schedule  │
-  │  (1fr)     │   (1.6fr)        │   (1.2fr)         │
-  └────────────┴──────────────────┴──────────────────┘
+  2-column layout
+  ┌────────────┬──────────────────────────────────────┐
+  │  BACKLOG   │  UP NEXT (HeroPanel)                  │
+  │            ├───────────────────────┬──────────────┤
+  │            │  TODAY (SchedulePanel)│ WEEK         │
+  └────────────┴───────────────────────┴──────────────┘
 -->
 <div class="w-dvw h-dvh bg-[var(--paper)] text-[var(--ink)] flex flex-col overflow-hidden relative">
 
@@ -37,21 +37,38 @@ $effect(() => tl.startClocks());
 		</button>
 	</div>
 
-	<!-- 3 columns: 1fr · 1.8fr · 1fr -->
-	<div class="flex-1 min-h-0 grid" style="grid-template-columns: 1fr 1.8fr 1fr;">
+	<!-- 2 columns: backlog (280px) | right (flex-1) -->
+	<div class="flex-1 min-h-0 grid" style="grid-template-columns: 280px 1fr;">
 
-		<!-- Left: dim when timer running -->
+		<!-- Left: Backlog — dim when timer running -->
 		<div class="min-h-0 overflow-hidden transition-all duration-500
 					{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
 			<BacklogPanel />
 		</div>
 
-		<HeroPanel />
+		<!-- Right: UP NEXT stacked above [TODAY | WEEK] -->
+		<div class="min-h-0 flex flex-col">
 
-		<!-- Right: dim when timer running -->
-		<div class="min-h-0 overflow-hidden transition-all duration-500
-					{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
-			<SchedulePanel />
+			<!-- UP NEXT: HeroPanel — roughly top 45% -->
+			<div class="flex-[9] min-h-0 overflow-hidden border-b border-[var(--line)]">
+				<HeroPanel />
+			</div>
+
+			<!-- TODAY + WEEK: bottom portion — dim when timer running -->
+			<div class="flex-[11] min-h-0 flex transition-all duration-500
+						{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
+
+				<!-- Timeline: flex-1 -->
+				<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
+					<SchedulePanel />
+				</div>
+
+				<!-- Week: fixed narrow, low priority -->
+				<div class="w-36 shrink-0 min-h-0 overflow-hidden">
+					<WeekPanel />
+				</div>
+
+			</div>
 		</div>
 
 	</div>
