@@ -18,8 +18,16 @@ const days = $derived.by(() => {
 			date: d.getDate(),
 			isToday: i === 0,
 			tasks: i === 0
-				? tl.scheduled.map(t => ({ start: t.start, end: t.end }))
-				: fakeDayTasks(i).map(t => ({ start: t.start, end: t.end })),
+				? tl.scheduled.map(t => ({
+						id: t.id,
+						start: t.start,
+						end: t.end,
+						title: t.title,
+						description: t.description,
+						todos: t.todos,
+						state: t.state,
+					}))
+				: fakeDayTasks(i),
 		});
 	}
 	return out;
@@ -56,15 +64,15 @@ function nowTop() { return pct(tl.nowHour); }
 		<div class="flex-1 flex min-w-0 min-h-0">
 			{#each days as day}
 				{@const isSelected = tl.viewDayOffset === day.offset}
-				<button
-					type="button"
-					onclick={() => tl.setViewDay(day.offset)}
-					class="flex-1 min-w-0 flex flex-col border-r border-[var(--line)] last:border-r-0
-						   transition-colors {isSelected ? 'bg-[var(--surface)]' : 'hover:bg-[var(--surface)]/60'}">
+				<div class="flex-1 min-w-0 flex flex-col border-r border-[var(--line)] last:border-r-0
+						   transition-colors {isSelected ? 'bg-[var(--surface)]' : ''}">
 
-					<!-- Day header -->
-					<div class="h-9 flex flex-col items-center justify-center shrink-0 border-b
-								{isSelected ? 'border-[var(--accent)]' : 'border-[var(--line)]'}">
+					<!-- Day header — click switches TODAY view -->
+					<button
+						type="button"
+						onclick={() => tl.setViewDay(day.offset)}
+						class="h-9 w-full flex flex-col items-center justify-center shrink-0 border-b hover:bg-[var(--surface)]/60 transition-colors
+							   {isSelected ? 'border-[var(--accent)]' : 'border-[var(--line)]'}">
 						<span class="font-mono text-[8px] tracking-[0.04em] uppercase
 									 {day.isToday ? 'text-[var(--accent)]' : 'text-[var(--ink-300)]'}
 									 {isSelected ? 'font-bold' : ''}">
@@ -75,7 +83,7 @@ function nowTop() { return pct(tl.nowHour); }
 									 {isSelected ? 'font-bold' : ''}">
 							{day.date}
 						</span>
-					</div>
+					</button>
 
 					<!-- Mini timeline — fills remaining height, percentage-positioned -->
 					<div class="flex-1 relative min-h-0 w-full">
@@ -86,16 +94,20 @@ function nowTop() { return pct(tl.nowHour); }
 								style="top: {pct(h)};"></div>
 						{/each}
 
-						<!-- Task blocks -->
+						<!-- Task blocks — individually clickable for popover -->
 						{#each day.tasks as task}
-							<div class="absolute left-0.5 right-0.5 rounded-[1px] overflow-hidden px-0.5 py-px
-										{day.isToday ? 'bg-[var(--accent)]' : 'bg-[var(--ink-300)] opacity-50'}"
+							<button
+								type="button"
+								onclick={() => tl.openPopover(task)}
+								class="absolute left-0.5 right-0.5 rounded-[1px] overflow-hidden px-0.5 py-px text-left
+									   hover:opacity-100 transition-opacity
+									   {day.isToday ? 'bg-[var(--accent)]' : 'bg-[var(--ink-300)] opacity-50'}"
 								style="top: {taskTop(task.start)}; height: {taskHeight(task.start, task.end)};">
 								<span class="block truncate font-sans text-[8px] leading-tight
 											 {day.isToday ? 'text-white/60' : 'text-white/70'}">
 									{task.title}
 								</span>
-							</div>
+							</button>
 						{/each}
 
 						<!-- NOW line (today only) -->
@@ -106,7 +118,7 @@ function nowTop() { return pct(tl.nowHour); }
 
 					</div>
 
-				</button>
+				</div>
 			{/each}
 		</div>
 

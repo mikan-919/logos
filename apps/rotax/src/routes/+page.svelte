@@ -5,6 +5,7 @@ import HeroPanel from "$lib/timeline/HeroPanel.svelte";
 import SchedulePanel from "$lib/timeline/SchedulePanel.svelte";
 import WeekPanel from "$lib/timeline/WeekPanel.svelte";
 import CalendarPeek from "$lib/timeline/CalendarPeek.svelte";
+import TaskPopover from "$lib/timeline/TaskPopover.svelte";
 
 $effect(() => tl.startClocks());
 </script>
@@ -75,5 +76,8 @@ $effect(() => tl.startClocks());
 
 	<!-- Calendar peek overlay -->
 	<CalendarPeek />
+
+	<!-- Task detail popover -->
+	<TaskPopover />
 
 </div>

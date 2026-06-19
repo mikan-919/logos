@@ -37,7 +37,7 @@ const items = $derived.by((): Item[] => {
 			crossesMidnight: task.end > 24,
 			isCursor: tl.viewDayOffset === 0 && tl.selected?.id === task.id && !tl.ignited,
 			isDone: 'state' in task && task.state === "done",
-			isClickable: tl.viewDayOffset === 0 && !('state' in task && task.state === "done"),
+			isClickable: tl.viewDayOffset === 0,
 		};
 	});
 });
@@ -89,7 +89,11 @@ const nowInsertIdx = $derived.by(() => {
 				<!-- Task block -->
 				<button
 					type="button"
-					onclick={() => item.isClickable && 'state' in item.task && tl.select(item.task as any)}
+					onclick={() => {
+						if (!item.isClickable) return;
+						if ('state' in item.task && item.task.state !== 'done') tl.select(item.task as any);
+						tl.openPopover(item.task as any);
+					}}
 					disabled={!item.isClickable}
 					style="height: {item.taskHeight}px"
 					class="flex-1 min-w-0 text-left transition-all
