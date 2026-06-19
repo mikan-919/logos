@@ -3,7 +3,7 @@ import { hhmm } from "$lib/dashboard/format";
 
 export const HOUR_START = 7;
 export const HOUR_END = 24;
-export const HOUR_PX = 72;
+export const HOUR_PX = 64;
 
 class TimelineState {
 	tasks = $state<Task[]>(seedTasks());
@@ -26,13 +26,24 @@ class TimelineState {
 			.sort((a, b) => a.start - b.start),
 	);
 
-	nowHour = $derived(
-		this.now.getHours() + this.now.getMinutes() / 60 + this.now.getSeconds() / 3600,
+	backlog = $derived(this.tasks.filter((t) => t.state === "backlog"));
+
+	activeTask = $derived(this.tasks.find((t) => t.state === "active") ?? null);
+
+	nextUpcoming = $derived(
+		this.scheduled.find((t) => t.state === "upcoming") ?? null,
 	);
 
-	nowTopPx = $derived(
-		(this.nowHour - HOUR_START) * HOUR_PX,
+	// Center column focus: ignited > active > next upcoming
+	heroTask = $derived(this.ignited ?? this.activeTask ?? this.nextUpcoming);
+
+	nowHour = $derived(
+		this.now.getHours() +
+			this.now.getMinutes() / 60 +
+			this.now.getSeconds() / 3600,
 	);
+
+	nowTopPx = $derived((this.nowHour - HOUR_START) * HOUR_PX);
 
 	dateLabel = $derived(
 		this.now.toLocaleDateString("ja-JP", {
@@ -48,7 +59,7 @@ class TimelineState {
 		this.pomoTotal > 0 ? this.pomoElapsed / this.pomoTotal : 0,
 	);
 
-	pomoDisplay = $derived(() => {
+	pomoDisplay = $derived.by(() => {
 		const r = this.pomoRemaining;
 		const m = Math.floor(r / 60);
 		const s = r % 60;
@@ -56,12 +67,18 @@ class TimelineState {
 	});
 
 	ignite = (task: Task) => {
-		if (this.ignited) return;
+		// Un-ignite if same task
+		if (this.ignited?.id === task.id) {
+			this.collapse(false);
+			return;
+		}
+		if (this.ignited) this.collapse(false);
 		this.ignited = task;
 		this.pomoElapsed = 0;
-		this.pomoTotal = task.start !== null && task.end !== null
-			? Math.round((task.end - task.start) * 60) * 60
-			: 25 * 60;
+		this.pomoTotal =
+			task.start !== null && task.end !== null
+				? Math.round((task.end - task.start) * 60) * 60
+				: 25 * 60;
 		this.paused = false;
 		this.running = true;
 		task.state = "active";
@@ -69,8 +86,6 @@ class TimelineState {
 
 	collapse = (completed: boolean) => {
 		if (!this.ignited) return;
-		clearInterval(this.#pomoInterval!);
-		this.#pomoInterval = null;
 		if (completed) {
 			this.ignited.state = "done";
 		} else {
@@ -79,6 +94,7 @@ class TimelineState {
 		this.ignited = null;
 		this.running = false;
 		this.paused = false;
+		this.pomoElapsed = 0;
 	};
 
 	togglePause = () => {
