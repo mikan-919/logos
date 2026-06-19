@@ -1,19 +1,8 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+Antique:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap");
-
-/* UDEV Gothic NF (JetBrains Mono + BIZ UD Gothic), self-hosted from static/fonts.
-   v2.2.0 — https://github.com/yuru7/udev-gothic */
-@font-face {
-  font-family: "UDEV Gothic";
-  src: url("/fonts/UDEVGothicNF-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
 @theme {
-  --font-sans: "Zen Kaku Gothic Antique", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "DM Sans", "Zen Kaku Gothic Antique", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "M PLUS 1 Code", ui-monospace, monospace;
 }
 
 @layer theme {
@@ -50,9 +39,9 @@
     --danger: #C2331B;       /* colors.danger */
 
     /* Three voices stage the noumenon/phenomenon split (A3/A4) */
-    --font-display: "Zen Kaku Gothic Antique", sans-serif;
-    --font-text: "Zen Kaku Gothic Antique", sans-serif;
-    --font-mono: "UDEV Gothic", "JetBrains Mono", "IBM Plex Mono", monospace;
+    --font-display: "DM Sans", "Zen Kaku Gothic Antique", sans-serif;
+    --font-text: "DM Sans", "Zen Kaku Gothic Antique", sans-serif;
+    --font-mono: "JetBrains Mono", "M PLUS 1 Code", monospace;
 
     /* 4px base scale; generous voids prove a thin core (A8) */
     --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;

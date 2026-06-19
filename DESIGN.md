@@ -22,36 +22,36 @@ colors:
   danger: "#C2331B"
 typography:
   display:
-    fontFamily: "Neue Haas Grotesk Display, Inter Tight, Satoshi, sans-serif"
+    fontFamily: "DM Sans, Zen Kaku Gothic Antique, sans-serif"
     fontSize: 96px
     fontWeight: 700
     lineHeight: 0.95
     letterSpacing: -0.03em
   h1:
-    fontFamily: "Neue Haas Grotesk Display, Inter Tight, Satoshi, sans-serif"
+    fontFamily: "DM Sans, Zen Kaku Gothic Antique, sans-serif"
     fontSize: 56px
     fontWeight: 700
     lineHeight: 1.0
     letterSpacing: -0.02em
   h2:
-    fontFamily: "Neue Haas Grotesk Display, Inter Tight, Satoshi, sans-serif"
+    fontFamily: "DM Sans, Zen Kaku Gothic Antique, sans-serif"
     fontSize: 32px
     fontWeight: 600
     lineHeight: 1.1
     letterSpacing: -0.01em
   body:
-    fontFamily: "Neue Haas Grotesk Text, Inter, Satoshi, sans-serif"
+    fontFamily: "DM Sans, Zen Kaku Gothic Antique, sans-serif"
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.55
   meta:
-    fontFamily: "Söhne Mono, JetBrains Mono, IBM Plex Mono, monospace"
+    fontFamily: "JetBrains Mono, M PLUS 1 Code, monospace"
     fontSize: 10.5px
     fontWeight: 500
     lineHeight: 1.2
     letterSpacing: 0.08em
   data:
-    fontFamily: "Söhne Mono, JetBrains Mono, IBM Plex Mono, monospace"
+    fontFamily: "JetBrains Mono, M PLUS 1 Code, monospace"
     fontSize: 13px
     fontWeight: 500
     lineHeight: 1.4
