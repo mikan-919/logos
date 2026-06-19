@@ -58,13 +58,13 @@ $effect(() => tl.startClocks());
 			<div class="flex-[11] min-h-0 flex transition-all duration-500
 						{tl.ignited ? 'opacity-25 pointer-events-none' : ''}">
 
-				<!-- TODAY: primary — fills available space -->
-				<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
+				<!-- TODAY: primary — 2 parts -->
+				<div class="flex-[2] min-w-0 min-h-0 overflow-hidden">
 					<SchedulePanel />
 				</div>
 
-				<!-- WEEK: secondary — fixed narrow -->
-				<div class="w-48 shrink-0 min-h-0 overflow-hidden">
+				<!-- WEEK: secondary — 3 parts -->
+				<div class="flex-[3] min-w-0 min-h-0 overflow-hidden">
 					<WeekPanel />
 				</div>
 
