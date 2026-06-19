@@ -88,9 +88,13 @@ function nowTop() { return pct(tl.nowHour); }
 
 						<!-- Task blocks -->
 						{#each day.tasks as task}
-							<div class="absolute left-0.5 right-0.5 rounded-[1px]
+							<div class="absolute left-0.5 right-0.5 rounded-[1px] overflow-hidden px-0.5 py-px
 										{day.isToday ? 'bg-[var(--accent)]' : 'bg-[var(--ink-300)] opacity-50'}"
 								style="top: {taskTop(task.start)}; height: {taskHeight(task.start, task.end)};">
+								<span class="block truncate font-sans text-[8px] leading-tight
+											 {day.isToday ? 'text-white/60' : 'text-white/70'}">
+									{task.title}
+								</span>
 							</div>
 						{/each}
 
