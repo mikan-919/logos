@@ -118,13 +118,13 @@ const nowInsertIdx = $derived.by(() => {
 									  {item.taskHeight < 52 ? 'truncate' : ''}">
 								{item.task.title}
 							</p>
-							{#if item.taskHeight > 56}
+							{#if item.taskHeight > 52 && !item.crossesMidnight}
 								<p class="font-mono text-[10px] tracking-[0.04em] tabular-nums
 										  {item.isCursor ? 'text-white/70' : 'text-[var(--ink-300)]'}">
 									{hhmm(item.task.start)} – {hhmm(item.task.end)}
 								</p>
 							{/if}
-							{#if item.crossesMidnight && item.taskHeight >= 64}
+							{#if item.crossesMidnight}
 								<p class="font-mono text-[9px] tracking-[0.06em]
 										  {item.isCursor ? 'text-white/60' : 'text-[var(--ink-300)]'}">
 									↓ 翌
