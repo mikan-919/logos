@@ -8,8 +8,14 @@ export type DirectedRef = Ref & {
 	fromArchetype: string;
 };
 
+// Rotax only shows entities that have at least one rotax Task component.
+function hasRotaxTask(e: Entity): boolean {
+	return e.components.some((c) => c.service === "rotax" && c.kind === "Task");
+}
+
 class EntityState {
-	entities = $state<Entity[]>(seedEntities());
+	// All entities from the store, pre-filtered to rotax Task scope.
+	entities = $state<Entity[]>(seedEntities().filter(hasRotaxTask));
 	focusedId = $state<string>("");
 	query = $state("");
 	serviceFilter = $state<string>("all");
