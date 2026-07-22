@@ -79,6 +79,8 @@ function applyEvent(state: SemanticState, event: SemanticEvent): void {
     case "context.updated":
       state.context = event.payload;
       break;
+    case "agent.context_delivered":
+      break;
     case "entity.merged":
       state.merges.set(event.payload.mergeId, {
         sourceEntityId: event.payload.sourceEntityId,
@@ -393,5 +395,22 @@ export class LogosKernel {
       }),
       hypotheses,
     };
+  }
+
+  async deliverAgentContext(consumer: string, operation?: string): Promise<AgentContext> {
+    const context = this.agentContext();
+    const at = now();
+    await this.emit({
+      id: id("evt"),
+      type: "agent.context_delivered",
+      at,
+      payload: {
+        sessionId: id("ses"),
+        consumer,
+        entityIds: context.entities.map((entity) => entity.id),
+        ...(operation ? { operation } : {}),
+      },
+    });
+    return context;
   }
 }

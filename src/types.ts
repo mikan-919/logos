@@ -112,6 +112,12 @@ export type SemanticEvent =
   | { id: string; type: "context.updated"; at: string; payload: ActiveContext }
   | {
       id: string;
+      type: "agent.context_delivered";
+      at: string;
+      payload: { sessionId: string; consumer: string; operation?: string; entityIds: string[] };
+    }
+  | {
+      id: string;
       type: "entity.merged";
       at: string;
       payload: { mergeId: string; sourceEntityId: string; targetEntityId: string; evidenceId: string };

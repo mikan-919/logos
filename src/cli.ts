@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 import { resolve } from "node:path";
 import { importGitHub, importLinear, resolveDeterministic } from "./connectors";
+import { startHttpServer } from "./http";
 import { LogosKernel, ValidationError } from "./kernel";
+import { startMcpServer } from "./mcp";
 import { ENTITY_TYPES, RELATION_TYPES, type ActiveContext, type EntityType, type EvidenceKind, type RelationType } from "./types";
 
 interface CliOptions {
@@ -108,6 +110,34 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
     if (!entity || entity.type !== "WorkItem") throw new ValidationError(`Unknown work item: ${reference}`);
     return kernel.setContext({ ...publicContext(kernel.snapshot().context), workItemId: entity.id });
   }
+  if (group === "branch" && (action === "register" || action === "create")) {
+    const name = required(args, 2, "branch name");
+    const current = kernel.snapshot().context;
+    if (!current.workItemId) throw new ValidationError("Start a work item before creating a branch");
+    if (action === "create") {
+      const process = Bun.spawn(["git", "switch", "-c", name], { cwd, stdout: "pipe", stderr: "pipe" });
+      const exitCode = await process.exited;
+      if (exitCode !== 0) throw new ValidationError(`git switch failed: ${await new Response(process.stderr).text()}`);
+    }
+    const existing = kernel.findByExternalIdentity("local", `git-branch:${name}`);
+    const entity = existing ?? (await kernel.createEntity("Branch", name));
+    if (!existing) {
+      await kernel.attachComponent(entity.id, {
+        kind: "LocalGitBranch",
+        provider: "local",
+        externalId: `git-branch:${name}`,
+        data: { name },
+      });
+    }
+    const evidence = await kernel.recordEvidence({
+      kind: "operation",
+      description: `Branch ${name} registered from active work item ${current.workItemId}`,
+      source: `logos branch ${action}`,
+    });
+    const relation = await kernel.createRelation(entity.id, "implements", current.workItemId, [evidence.id]);
+    await kernel.setContext({ ...publicContext(current), branchId: entity.id });
+    return { entity, relation };
+  }
   if (group === "context" && action === "set") {
     const kind = required(args, 2, "context kind");
     const entityId = required(args, 3, "entity ID");
@@ -151,6 +181,8 @@ const HELP = `logos commands:
   import <linear|github> <export.json>
   resolve
   work start <entity-id|external-id>
+  branch register <name>
+  branch create <name>
   context show
   agent context
   entity create <type> <title>
@@ -164,7 +196,18 @@ const HELP = `logos commands:
 
 if (import.meta.main) {
   try {
-    const result = await runCli(process.argv.slice(2));
+    const args = process.argv.slice(2);
+    if (args[0] === "mcp") {
+      await startMcpServer(process.cwd());
+      process.exit(0);
+    }
+    if (args[0] === "serve") {
+      const port = Number(option(args, "--port") ?? "4317");
+      const server = startHttpServer(process.cwd(), port);
+      console.log(`Logos review UI: ${server.url}`);
+      await new Promise(() => {});
+    }
+    const result = await runCli(args);
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {
     console.error(JSON.stringify({ error: (error as Error).message }, null, 2));
