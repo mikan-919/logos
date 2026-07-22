@@ -378,6 +378,10 @@ export class LogosKernel {
         hypothesis.status === "candidate" &&
         (activeIds.has(hypothesis.fromEntityId) || activeIds.has(hypothesis.toEntityId)),
     );
+    for (const hypothesis of hypotheses) {
+      activeIds.add(hypothesis.fromEntityId);
+      activeIds.add(hypothesis.toEntityId);
+    }
     const evidenceIds = new Set([
       ...relations.flatMap((relation) => relation.evidenceIds),
       ...hypotheses.flatMap((hypothesis) => hypothesis.evidenceIds),

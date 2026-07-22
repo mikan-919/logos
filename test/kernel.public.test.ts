@@ -96,4 +96,22 @@ describe("semantic kernel public API", () => {
     await kernel.revertMerge(mergeId);
     expect(kernel.canonicalEntityId(source.id)).toBe(source.id);
   });
+
+  test("agent context includes both endpoints of relevant hypotheses", async () => {
+    const kernel = await LogosKernel.open(await workspace());
+    const work = await kernel.createEntity("WorkItem", "Cache policy");
+    const branch = await kernel.createEntity("Branch", "feature/cache");
+    const evidence = await kernel.recordEvidence({ kind: "local-rule", description: "Branch mentions task" });
+    await kernel.proposeRelation({
+      fromEntityId: branch.id,
+      toEntityId: work.id,
+      relationType: "implements",
+      confidence: 0.9,
+      evidenceIds: [evidence.id],
+      resolver: "branch-rule/v1",
+    });
+    await kernel.setContext({ workItemId: work.id });
+
+    expect(kernel.agentContext().entities.map((entity) => entity.id).sort()).toEqual([branch.id, work.id].sort());
+  });
 });
