@@ -14,7 +14,7 @@ The MVP deliberately proves the semantic identity workflow locally before adding
 | Deterministic resolver | Explicit Linear identifiers in branches, commits, and PRs produce hypotheses with versioned evidence | CLI workflow tests |
 | Write-time grounding | Active WorkItem → local Git Branch → canonical `implements` relation | Interface tests |
 | Evidence review | CLI explanation plus local HTTP review queue | Interface tests |
-| Agent context API | MCP stdio server with bounded Read/Explain/Propose tools and operation-specific selection | Interface tests |
+| Agent context API | MCP stdio server with bounded Read/Explain/Propose tools, operation-specific selection, and explicit truncation metadata | Interface tests |
 | Permission separation | MCP can read/propose; human CLI/UI accepts or rejects | Interface tests |
 | Session log | Every delivered agent context records consumer, operation, and entity IDs | MCP test |
 

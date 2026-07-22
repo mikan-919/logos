@@ -131,7 +131,10 @@ describe("CLI workflow", () => {
       githubPath,
       JSON.stringify({
         repositories: [{ id: "repo", name: "acme/api" }],
-        branches: [{ id: "branch", name: "feature/ENG-142-other", repositoryId: "repo" }],
+        branches: [
+          { id: "branch", name: "feature/ENG-142-other", repositoryId: "repo" },
+          { id: "branch-2", name: "feature/xENG-14-prefixed", repositoryId: "repo" },
+        ],
       }),
     );
     await runCli(["import", "linear", linearPath], { cwd: root });

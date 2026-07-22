@@ -147,4 +147,26 @@ describe("semantic kernel public API", () => {
     expect(kernel.snapshot().components[0]?.data).toEqual({ status: "Done" });
     expect(kernel.history().at(-1)?.type).toBe("component.refreshed");
   });
+
+  test("refreshes a representation through its canonical entity after merge", async () => {
+    const kernel = await LogosKernel.open(await workspace());
+    const source = await kernel.createEntity("WorkItem", "Old title");
+    const target = await kernel.createEntity("WorkItem", "Canonical title");
+    await kernel.attachComponent(source.id, {
+      kind: "LinearIssue",
+      provider: "linear",
+      externalId: "ENG-142",
+      data: { status: "Todo" },
+    });
+    const evidence = await kernel.recordEvidence({ kind: "human", description: "Same work" });
+    await kernel.mergeEntity(source.id, target.id, evidence.id);
+
+    await kernel.attachComponent(target.id, {
+      kind: "LinearIssue",
+      provider: "linear",
+      externalId: "ENG-142",
+      data: { status: "Done" },
+    });
+    expect(kernel.snapshot().components[0]?.data).toEqual({ status: "Done" });
+  });
 });

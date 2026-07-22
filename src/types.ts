@@ -138,6 +138,7 @@ export interface SemanticState {
 
 export interface AgentContext {
   active: ActiveContext;
+  selection: { policy: "active-one-hop" | "review-hypotheses"; truncated: boolean };
   entities: Entity[];
   components: Component[];
   relations: Relation[];

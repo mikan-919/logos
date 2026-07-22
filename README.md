@@ -107,7 +107,7 @@ Example MCP server configuration for Claude Code or another JSON-configured clie
 
 For Codex, use the same command, arguments, and project working directory in its MCP server configuration. The server exposes exactly three tools:
 
-- `logos_context_get` — read the bounded active context and audit its delivery. Pass `operation: "review-hypotheses"` to select the unresolved review queue; other operations use the active one-hop work policy.
+- `logos_context_get` — read the bounded active context and audit its delivery. Pass `operation: "review-hypotheses"` to select the unresolved review queue; other operations use the active one-hop work policy. Payloads are capped at 25 hypotheses, 50 entities, and 100 relations/components, with `selection.truncated` indicating omitted results.
 - `logos_explain` — inspect provenance for a relation or hypothesis.
 - `logos_relation_propose` — create a hypothesis only; it cannot create a canonical relation.
 

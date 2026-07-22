@@ -258,7 +258,7 @@ function searchableText(component: Component, entity: Entity): string {
 
 function containsExternalIdentifier(text: string, identifier: string): boolean {
   const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^A-Z0-9])${escaped}(?![A-Z0-9])`).test(text);
+  return new RegExp(`(^|[^A-Za-z0-9])${escaped}(?![A-Za-z0-9])`).test(text);
 }
 
 export async function resolveDeterministic(kernel: LogosKernel): Promise<{ proposed: number; skipped: number }> {

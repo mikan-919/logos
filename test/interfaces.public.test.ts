@@ -135,4 +135,32 @@ describe("MCP-compatible agent interface", () => {
     expect(payload.hypotheses).toHaveLength(1);
     expect(payload.components[0].data).toMatchObject({ state: "open" });
   });
+
+  test("bounds workspace-wide hypothesis review context", async () => {
+    const root = await workspace();
+    const kernel = await LogosKernel.open(root);
+    for (let index = 0; index < 30; index++) {
+      const branch = await kernel.createEntity("Branch", `feature/${index}`);
+      const work = await kernel.createEntity("WorkItem", `Task ${index}`);
+      const evidence = await kernel.recordEvidence({ kind: "local-rule", description: `Rule ${index}` });
+      await kernel.proposeRelation({
+        fromEntityId: branch.id,
+        toEntityId: work.id,
+        relationType: "implements",
+        confidence: 0.7,
+        evidenceIds: [evidence.id],
+        resolver: "bulk-rule/v1",
+      });
+    }
+    const response = await handleMcpMessage(root, {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "logos_context_get", arguments: { operation: "review-hypotheses" } },
+    });
+    const payload = JSON.parse(response.result.content[0].text);
+    expect(payload.hypotheses).toHaveLength(25);
+    expect(payload.entities.length).toBeLessThanOrEqual(50);
+    expect(payload.selection).toMatchObject({ policy: "review-hypotheses", truncated: true });
+  });
 });

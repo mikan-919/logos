@@ -171,7 +171,10 @@ export class LogosKernel {
           component.provider === input.provider &&
           component.externalId === input.externalId,
       );
-      if (existing && existing.entityId !== entityId) {
+      if (
+        existing &&
+        this.canonicalEntityId(existing.entityId) !== this.canonicalEntityId(entityId)
+      ) {
         throw new IdentityConflictError(
           `${input.provider}:${input.externalId} already represents ${existing.entityId}`,
         );
@@ -402,43 +405,80 @@ export class LogosKernel {
   }
 
   agentContext(operation?: string): AgentContext {
-    const activeIds = new Set(Object.values(this.state.context).filter((value) => value.startsWith?.("ent_")));
+    const maxEntities = 50;
+    const maxRelations = 100;
+    const maxHypotheses = 25;
+    const maxComponents = 100;
+    const policy = operation === "review-hypotheses" ? "review-hypotheses" : "active-one-hop";
+    const seedIds = new Set(Object.values(this.state.context).filter((value) => value.startsWith?.("ent_")));
+    const activeIds = new Set(seedIds);
     const candidates = [...this.state.hypotheses.values()].filter(
       (hypothesis) => hypothesis.status === "candidate",
     );
-    if (operation === "review-hypotheses") {
-      for (const hypothesis of candidates) {
-        activeIds.add(hypothesis.fromEntityId);
-        activeIds.add(hypothesis.toEntityId);
+    let truncated = false;
+    const addEndpoints = (fromEntityId: string, toEntityId: string): boolean => {
+      const additions = [fromEntityId, toEntityId].filter((entityId) => !activeIds.has(entityId));
+      if (activeIds.size + additions.length > maxEntities) return false;
+      additions.forEach((entityId) => activeIds.add(entityId));
+      return true;
+    };
+
+    const hypotheses: Hypothesis[] = [];
+    if (policy === "review-hypotheses") {
+      const reviewPool = seedIds.size > 0
+        ? candidates.filter(
+            (hypothesis) => seedIds.has(hypothesis.fromEntityId) || seedIds.has(hypothesis.toEntityId),
+          )
+        : candidates;
+      for (const hypothesis of reviewPool) {
+        if (hypotheses.length >= maxHypotheses || !addEndpoints(hypothesis.fromEntityId, hypothesis.toEntityId)) {
+          truncated = true;
+          continue;
+        }
+        hypotheses.push(hypothesis);
       }
     }
-    const relations = [...this.state.relations.values()].filter(
+
+    const relationPool = [...this.state.relations.values()].filter(
       (relation) => activeIds.has(relation.fromEntityId) || activeIds.has(relation.toEntityId),
     );
-    for (const relation of relations) {
-      activeIds.add(relation.fromEntityId);
-      activeIds.add(relation.toEntityId);
+    const relations: Relation[] = [];
+    for (const relation of relationPool) {
+      if (relations.length >= maxRelations || !addEndpoints(relation.fromEntityId, relation.toEntityId)) {
+        truncated = true;
+        continue;
+      }
+      relations.push(relation);
     }
-    const hypotheses = candidates.filter(
-      (hypothesis) =>
-        operation === "review-hypotheses" ||
-        (activeIds.has(hypothesis.fromEntityId) || activeIds.has(hypothesis.toEntityId)),
-    );
-    for (const hypothesis of hypotheses) {
-      activeIds.add(hypothesis.fromEntityId);
-      activeIds.add(hypothesis.toEntityId);
+
+    if (policy === "active-one-hop") {
+      const hypothesisPool = candidates.filter(
+        (hypothesis) => activeIds.has(hypothesis.fromEntityId) || activeIds.has(hypothesis.toEntityId),
+      );
+      for (const hypothesis of hypothesisPool) {
+        if (hypotheses.length >= maxHypotheses || !addEndpoints(hypothesis.fromEntityId, hypothesis.toEntityId)) {
+          truncated = true;
+          continue;
+        }
+        hypotheses.push(hypothesis);
+      }
     }
     const evidenceIds = new Set([
       ...relations.flatMap((relation) => relation.evidenceIds),
       ...hypotheses.flatMap((hypothesis) => hypothesis.evidenceIds),
     ]);
+    const componentPool = [...this.state.components.values()].filter((component) =>
+      activeIds.has(this.canonicalEntityId(component.entityId)),
+    );
+    if (componentPool.length > maxComponents) truncated = true;
     return {
       active: { ...this.state.context },
+      selection: { policy, truncated },
       entities: [...activeIds].flatMap((entityId) => {
         const entity = this.state.entities.get(entityId);
         return entity ? [entity] : [];
       }),
-      components: [...this.state.components.values()].filter((component) => activeIds.has(component.entityId)),
+      components: componentPool.slice(0, maxComponents),
       relations,
       evidence: [...evidenceIds].flatMap((evidenceId) => {
         const evidence = this.state.evidence.get(evidenceId);
