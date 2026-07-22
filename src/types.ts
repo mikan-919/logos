@@ -100,6 +100,7 @@ export interface ActiveContext {
 export type SemanticEvent =
   | { id: string; type: "entity.created"; at: string; payload: Entity }
   | { id: string; type: "component.attached"; at: string; payload: Component }
+  | { id: string; type: "component.refreshed"; at: string; payload: Component }
   | { id: string; type: "evidence.recorded"; at: string; payload: Evidence }
   | { id: string; type: "relation.created"; at: string; payload: Relation }
   | { id: string; type: "hypothesis.proposed"; at: string; payload: Hypothesis }
@@ -138,6 +139,7 @@ export interface SemanticState {
 export interface AgentContext {
   active: ActiveContext;
   entities: Entity[];
+  components: Component[];
   relations: Relation[];
   evidence: Evidence[];
   hypotheses: Hypothesis[];

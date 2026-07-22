@@ -3,6 +3,7 @@ import { LogosKernel, ValidationError } from "./kernel";
 import type { Component, Entity, EntityType, RelationType } from "./types";
 
 interface LinearProjectRecord {
+  [key: string]: unknown;
   id: string;
   key?: string;
   name: string;
@@ -10,6 +11,7 @@ interface LinearProjectRecord {
 }
 
 interface LinearIssueRecord {
+  [key: string]: unknown;
   id: string;
   identifier: string;
   title: string;
@@ -25,12 +27,14 @@ interface LinearExport {
 }
 
 interface GitHubRepositoryRecord {
+  [key: string]: unknown;
   id: string;
   name: string;
   url?: string;
 }
 
 interface GitHubRecord {
+  [key: string]: unknown;
   id: string;
   title?: string;
   name?: string;
@@ -79,7 +83,16 @@ async function upsertExternal(
   },
 ): Promise<{ entity: Entity; created: boolean }> {
   const existing = kernel.findByExternalIdentity(input.provider, input.externalId);
-  if (existing) return { entity: existing, created: false };
+  if (existing) {
+    await kernel.attachComponent(existing.id, {
+      kind: input.kind,
+      provider: input.provider,
+      externalId: input.externalId,
+      data: input.data,
+      ...(input.url ? { url: input.url } : {}),
+    });
+    return { entity: existing, created: false };
+  }
   const entity = input.logosEntityId
     ? kernel.snapshot().entities.find((candidate) => candidate.id === input.logosEntityId)
     : undefined;
@@ -130,7 +143,7 @@ export async function importLinear(kernel: LogosKernel, path: string): Promise<I
       entityType: "Project",
       title: project.name,
       kind: "LinearProject",
-      data: { key: project.key, name: project.name },
+      data: { ...project },
       ...(project.url ? { url: project.url } : {}),
     });
     projects.set(project.id, result.entity);
@@ -143,7 +156,7 @@ export async function importLinear(kernel: LogosKernel, path: string): Promise<I
       entityType: "WorkItem",
       title: issue.title,
       kind: "LinearIssue",
-      data: { id: issue.id, identifier: issue.identifier, title: issue.title, description: issue.description },
+      data: { ...issue },
       ...(issue.url ? { url: issue.url } : {}),
       ...(issue.logosEntityId ? { logosEntityId: issue.logosEntityId } : {}),
     });
@@ -182,7 +195,7 @@ export async function importGitHub(kernel: LogosKernel, path: string): Promise<I
       entityType: "Repository",
       title: repository.name,
       kind: "GitHubRepository",
-      data: { name: repository.name },
+      data: { ...repository },
       ...(repository.url ? { url: repository.url } : {}),
     });
     repositories.set(repository.id, result.entity);
@@ -243,6 +256,11 @@ function searchableText(component: Component, entity: Entity): string {
   return `${entity.title}\n${component.url ?? ""}\n${JSON.stringify(component.data)}`;
 }
 
+function containsExternalIdentifier(text: string, identifier: string): boolean {
+  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^A-Z0-9])${escaped}(?![A-Z0-9])`).test(text);
+}
+
 export async function resolveDeterministic(kernel: LogosKernel): Promise<{ proposed: number; skipped: number }> {
   const snapshot = kernel.snapshot();
   const entityById = new Map(snapshot.entities.map((entity) => [entity.id, entity]));
@@ -252,26 +270,25 @@ export async function resolveDeterministic(kernel: LogosKernel): Promise<{ propo
   });
   let proposed = 0;
   let skipped = 0;
+  const hypothesisKeys = new Set(
+    snapshot.hypotheses.map(
+      (hypothesis) => `${hypothesis.fromEntityId}:${hypothesis.relationType}:${hypothesis.toEntityId}`,
+    ),
+  );
+  const relationKeys = new Set(
+    snapshot.relations.map(
+      (relation) => `${relation.fromEntityId}:${relation.type}:${relation.toEntityId}`,
+    ),
+  );
   for (const component of snapshot.components) {
     if (!["GitHubBranch", "GitHubCommit", "GitHubPullRequest"].includes(component.kind)) continue;
     const source = entityById.get(component.entityId);
     if (!source) continue;
     const text = searchableText(component, source);
     for (const target of linearIdentities) {
-      if (component.entityId === target.entityId || !text.includes(target.identifier)) continue;
-      const duplicate = kernel.snapshot().hypotheses.some(
-        (hypothesis) =>
-          hypothesis.fromEntityId === component.entityId &&
-          hypothesis.toEntityId === target.entityId &&
-          hypothesis.relationType === "implements",
-      );
-      const canonical = kernel.snapshot().relations.some(
-        (relation) =>
-          relation.fromEntityId === component.entityId &&
-          relation.toEntityId === target.entityId &&
-          relation.type === "implements",
-      );
-      if (duplicate || canonical) {
+      if (component.entityId === target.entityId || !containsExternalIdentifier(text, target.identifier)) continue;
+      const key = `${component.entityId}:implements:${target.entityId}`;
+      if (hypothesisKeys.has(key) || relationKeys.has(key)) {
         skipped++;
         continue;
       }
@@ -291,6 +308,7 @@ export async function resolveDeterministic(kernel: LogosKernel): Promise<{ propo
         evidenceIds: [evidence.id],
         resolver: "explicit-reference/v1",
       });
+      hypothesisKeys.add(key);
       proposed++;
     }
   }

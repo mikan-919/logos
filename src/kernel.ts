@@ -54,6 +54,7 @@ function applyEvent(state: SemanticState, event: SemanticEvent): void {
       state.entities.set(event.payload.id, event.payload);
       break;
     case "component.attached":
+    case "component.refreshed":
       state.components.set(event.payload.id, event.payload);
       break;
     case "evidence.recorded":
@@ -165,16 +166,31 @@ export class LogosKernel {
     this.assertEntity(entityId);
     if (!input.kind.trim()) throw new ValidationError("Component kind is required");
     if (input.provider && input.externalId) {
-      const collision = [...this.state.components.values()].find(
+      const existing = [...this.state.components.values()].find(
         (component) =>
           component.provider === input.provider &&
-          component.externalId === input.externalId &&
-          this.canonicalEntityId(component.entityId) !== this.canonicalEntityId(entityId),
+          component.externalId === input.externalId,
       );
-      if (collision) {
+      if (existing && existing.entityId !== entityId) {
         throw new IdentityConflictError(
-          `${input.provider}:${input.externalId} already represents ${collision.entityId}`,
+          `${input.provider}:${input.externalId} already represents ${existing.entityId}`,
         );
+      }
+      if (existing) {
+        const refreshed: Component = {
+          ...existing,
+          kind: input.kind,
+          data: input.data,
+          observedAt: now(),
+          ...(input.url ? { url: input.url } : {}),
+        };
+        await this.emit({
+          id: id("evt"),
+          type: "component.refreshed",
+          at: refreshed.observedAt,
+          payload: refreshed,
+        });
+        return refreshed;
       }
     }
     const component: Component = {
@@ -291,16 +307,22 @@ export class LogosKernel {
   }
 
   async mergeEntity(sourceEntityId: string, targetEntityId: string, evidenceId: string): Promise<string> {
-    this.assertEntity(sourceEntityId);
-    this.assertEntity(targetEntityId);
+    const source = this.assertEntity(sourceEntityId);
+    const target = this.assertEntity(targetEntityId);
     this.assertEvidence([evidenceId]);
     if (sourceEntityId === targetEntityId) throw new ValidationError("Cannot merge an entity into itself");
+    if (source.type !== target.type) throw new ValidationError("Merged entities must have the same type");
+    if (this.canonicalEntityId(sourceEntityId) !== sourceEntityId) {
+      throw new ValidationError(`Source entity is already merged: ${sourceEntityId}`);
+    }
+    const canonicalTarget = this.canonicalEntityId(targetEntityId);
+    if (canonicalTarget === sourceEntityId) throw new ValidationError("Merge would create a cycle");
     const mergeId = id("mrg");
     await this.emit({
       id: id("evt"),
       type: "entity.merged",
       at: now(),
-      payload: { mergeId, sourceEntityId, targetEntityId, evidenceId },
+      payload: { mergeId, sourceEntityId, targetEntityId: canonicalTarget, evidenceId },
     });
     return mergeId;
   }
@@ -342,6 +364,21 @@ export class LogosKernel {
     };
   }
 
+  explain(targetId: string):
+    | { relation: Relation; evidence: Evidence[] }
+    | { hypothesis: Hypothesis; evidence: Evidence[] } {
+    if (targetId.startsWith("rel_")) return this.explainRelation(targetId);
+    const hypothesis = this.state.hypotheses.get(targetId);
+    if (!hypothesis) throw new ValidationError(`Unknown explainable object: ${targetId}`);
+    return {
+      hypothesis,
+      evidence: hypothesis.evidenceIds.flatMap((evidenceId) => {
+        const evidence = this.state.evidence.get(evidenceId);
+        return evidence ? [evidence] : [];
+      }),
+    };
+  }
+
   history(): SemanticEvent[] {
     return [...this.state.events];
   }
@@ -364,8 +401,17 @@ export class LogosKernel {
     };
   }
 
-  agentContext(): AgentContext {
+  agentContext(operation?: string): AgentContext {
     const activeIds = new Set(Object.values(this.state.context).filter((value) => value.startsWith?.("ent_")));
+    const candidates = [...this.state.hypotheses.values()].filter(
+      (hypothesis) => hypothesis.status === "candidate",
+    );
+    if (operation === "review-hypotheses") {
+      for (const hypothesis of candidates) {
+        activeIds.add(hypothesis.fromEntityId);
+        activeIds.add(hypothesis.toEntityId);
+      }
+    }
     const relations = [...this.state.relations.values()].filter(
       (relation) => activeIds.has(relation.fromEntityId) || activeIds.has(relation.toEntityId),
     );
@@ -373,9 +419,9 @@ export class LogosKernel {
       activeIds.add(relation.fromEntityId);
       activeIds.add(relation.toEntityId);
     }
-    const hypotheses = [...this.state.hypotheses.values()].filter(
+    const hypotheses = candidates.filter(
       (hypothesis) =>
-        hypothesis.status === "candidate" &&
+        operation === "review-hypotheses" ||
         (activeIds.has(hypothesis.fromEntityId) || activeIds.has(hypothesis.toEntityId)),
     );
     for (const hypothesis of hypotheses) {
@@ -392,6 +438,7 @@ export class LogosKernel {
         const entity = this.state.entities.get(entityId);
         return entity ? [entity] : [];
       }),
+      components: [...this.state.components.values()].filter((component) => activeIds.has(component.entityId)),
       relations,
       evidence: [...evidenceIds].flatMap((evidenceId) => {
         const evidence = this.state.evidence.get(evidenceId);
@@ -402,7 +449,7 @@ export class LogosKernel {
   }
 
   async deliverAgentContext(consumer: string, operation?: string): Promise<AgentContext> {
-    const context = this.agentContext();
+    const context = this.agentContext(operation);
     const at = now();
     await this.emit({
       id: id("evt"),

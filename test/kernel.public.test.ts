@@ -114,4 +114,37 @@ describe("semantic kernel public API", () => {
 
     expect(kernel.agentContext().entities.map((entity) => entity.id).sort()).toEqual([branch.id, work.id].sort());
   });
+
+  test("rejects merge cycles and incompatible entity types", async () => {
+    const kernel = await LogosKernel.open(await workspace());
+    const first = await kernel.createEntity("WorkItem", "First");
+    const second = await kernel.createEntity("WorkItem", "Second");
+    const branch = await kernel.createEntity("Branch", "feature/first");
+    const evidence = await kernel.recordEvidence({ kind: "human", description: "Confirmed" });
+    await kernel.mergeEntity(first.id, second.id, evidence.id);
+
+    expect(kernel.mergeEntity(second.id, first.id, evidence.id)).rejects.toThrow("cycle");
+    expect(kernel.mergeEntity(branch.id, second.id, evidence.id)).rejects.toThrow("same type");
+  });
+
+  test("refreshes an external representation without duplicating it", async () => {
+    const kernel = await LogosKernel.open(await workspace());
+    const work = await kernel.createEntity("WorkItem", "Cache policy");
+    await kernel.attachComponent(work.id, {
+      kind: "LinearIssue",
+      provider: "linear",
+      externalId: "ENG-142",
+      data: { status: "Todo" },
+    });
+    await kernel.attachComponent(work.id, {
+      kind: "LinearIssue",
+      provider: "linear",
+      externalId: "ENG-142",
+      data: { status: "Done" },
+    });
+
+    expect(kernel.snapshot().components).toHaveLength(1);
+    expect(kernel.snapshot().components[0]?.data).toEqual({ status: "Done" });
+    expect(kernel.history().at(-1)?.type).toBe("component.refreshed");
+  });
 });

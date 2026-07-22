@@ -103,4 +103,36 @@ describe("MCP-compatible agent interface", () => {
     const reopened = await LogosKernel.open(root);
     expect(reopened.history().at(-1)?.type).toBe("agent.context_delivered");
   });
+
+  test("review operation can select unresolved hypotheses beyond active work", async () => {
+    const root = await workspace();
+    const kernel = await LogosKernel.open(root);
+    const work = await kernel.createEntity("WorkItem", "Cache policy");
+    const branch = await kernel.createEntity("Branch", "feature/cache");
+    await kernel.attachComponent(branch.id, {
+      kind: "GitHubBranch",
+      provider: "github",
+      externalId: "branch-1",
+      data: { name: "feature/cache", state: "open" },
+    });
+    const evidence = await kernel.recordEvidence({ kind: "local-rule", description: "Branch convention" });
+    await kernel.proposeRelation({
+      fromEntityId: branch.id,
+      toEntityId: work.id,
+      relationType: "implements",
+      confidence: 0.8,
+      evidenceIds: [evidence.id],
+      resolver: "branch-rule/v1",
+    });
+
+    const response = await handleMcpMessage(root, {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "logos_context_get", arguments: { operation: "review-hypotheses" } },
+    });
+    const payload = JSON.parse(response.result.content[0].text);
+    expect(payload.hypotheses).toHaveLength(1);
+    expect(payload.components[0].data).toMatchObject({ state: "open" });
+  });
 });

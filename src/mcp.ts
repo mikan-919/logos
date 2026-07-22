@@ -74,14 +74,7 @@ export async function handleMcpMessage(workspace: string, request: McpRequest): 
     }
     if (name === "logos_explain") {
       const target = String(args.id ?? "");
-      if (target.startsWith("rel_")) return { ...base, result: textResult(kernel.explainRelation(target)) };
-      const hypothesis = kernel.snapshot().hypotheses.find((candidate) => candidate.id === target);
-      if (!hypothesis) throw new ValidationError(`Unknown explainable object: ${target}`);
-      const evidence = hypothesis.evidenceIds.flatMap((evidenceId) => {
-        const match = kernel.snapshot().evidence.find((candidate) => candidate.id === evidenceId);
-        return match ? [match] : [];
-      });
-      return { ...base, result: textResult({ hypothesis, evidence }) };
+      return { ...base, result: textResult(kernel.explain(target)) };
     }
     if (name === "logos_relation_propose") {
       const relationType = args.relationType as RelationType;

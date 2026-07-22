@@ -81,7 +81,7 @@ GitHub:
 }
 ```
 
-Supported GitHub arrays are `repositories`, `issues`, `branches`, `commits`, and `pullRequests`. An imported record may include `logosEntityId` when its identity was propagated at write time; Logos then adds the representation to that entity instead of creating a new one.
+Supported GitHub arrays are `repositories`, `issues`, `branches`, `commits`, and `pullRequests`. Re-importing the same external identity refreshes its Component data while preserving event history. An imported record may include `logosEntityId` when its identity was propagated at write time; Logos then adds the representation to that entity instead of creating a new one.
 
 ## Coding-agent integration
 
@@ -107,7 +107,7 @@ Example MCP server configuration for Claude Code or another JSON-configured clie
 
 For Codex, use the same command, arguments, and project working directory in its MCP server configuration. The server exposes exactly three tools:
 
-- `logos_context_get` — read the bounded active context and audit its delivery.
+- `logos_context_get` — read the bounded active context and audit its delivery. Pass `operation: "review-hypotheses"` to select the unresolved review queue; other operations use the active one-hop work policy.
 - `logos_explain` — inspect provenance for a relation or hypothesis.
 - `logos_relation_propose` — create a hypothesis only; it cannot create a canonical relation.
 
@@ -120,6 +120,6 @@ Canonical mutation remains in the human CLI/Review UI boundary.
 - Duplicate external identity raises a conflict rather than triggering a merge.
 - Merge and merge reversal are explicit semantic events.
 - Imports and resolver decisions retain their source and resolver version.
-- Agent context is one-hop bounded around Active Context and every delivery is logged.
+- Agent context includes current external Component state, is selected by operation, and every delivery is logged.
 
 See [CONCEPT.md](CONCEPT.md), [ROADMAP.md](ROADMAP.md), and [docs/MVP.md](docs/MVP.md) for product scope and the implementation map.

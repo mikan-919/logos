@@ -108,7 +108,8 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       ?? kernel.findByExternalIdentity("linear", reference)
       ?? kernel.findByExternalIdentity("github", reference);
     if (!entity || entity.type !== "WorkItem") throw new ValidationError(`Unknown work item: ${reference}`);
-    return kernel.setContext({ ...publicContext(kernel.snapshot().context), workItemId: entity.id });
+    const { branchId: _, ...contextWithoutBranch } = publicContext(kernel.snapshot().context);
+    return kernel.setContext({ ...contextWithoutBranch, workItemId: entity.id });
   }
   if (group === "branch" && (action === "register" || action === "create")) {
     const name = required(args, 2, "branch name");
@@ -146,23 +147,15 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
     return kernel.setContext({ ...publicContext(kernel.snapshot().context), [field]: entityId });
   }
   if (group === "context" && action === "show") return kernel.snapshot().context;
-  if (group === "agent" && action === "context") return kernel.agentContext();
+  if (group === "agent" && action === "context") {
+    return kernel.deliverAgentContext("cli", option(args, "--operation"));
+  }
   if (group === "import" && action === "linear") return importLinear(kernel, required(args, 2, "file path"));
   if (group === "import" && action === "github") return importGitHub(kernel, required(args, 2, "file path"));
   if (group === "resolve") return resolveDeterministic(kernel);
   if (group === "explain") {
     const target = required(args, 1, "relation or hypothesis ID");
-    if (target.startsWith("rel_")) return kernel.explainRelation(target);
-    const hypothesis = kernel.snapshot().hypotheses.find((candidate) => candidate.id === target);
-    if (hypothesis) {
-      return {
-        hypothesis,
-        evidence: hypothesis.evidenceIds.map((evidenceId) =>
-          kernel.snapshot().evidence.find((candidate) => candidate.id === evidenceId),
-        ),
-      };
-    }
-    throw new ValidationError(`Unknown explainable object: ${target}`);
+    return kernel.explain(target);
   }
   if (group === "merge") {
     const evidence = option(args, "--evidence");

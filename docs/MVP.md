@@ -10,11 +10,11 @@ The MVP deliberately proves the semantic identity workflow locally before adding
 | Context stack | Project, WorkItem, Repository, and Branch Active Context | CLI workflow tests |
 | Append-only history | Every semantic mutation and context delivery is a JSONL event | Reload and MCP tests |
 | Identity safety | External identity collision errors; explicit reversible merge events | Kernel public tests |
-| Linear/GitHub read ingestion | Idempotent local JSON connector exports | CLI workflow tests |
+| Linear/GitHub read ingestion | Idempotent local JSON connector exports with append-only Component refresh | CLI workflow tests |
 | Deterministic resolver | Explicit Linear identifiers in branches, commits, and PRs produce hypotheses with versioned evidence | CLI workflow tests |
 | Write-time grounding | Active WorkItem → local Git Branch → canonical `implements` relation | Interface tests |
 | Evidence review | CLI explanation plus local HTTP review queue | Interface tests |
-| Agent context API | MCP stdio server with bounded Read/Explain/Propose tools | Interface tests |
+| Agent context API | MCP stdio server with bounded Read/Explain/Propose tools and operation-specific selection | Interface tests |
 | Permission separation | MCP can read/propose; human CLI/UI accepts or rejects | Interface tests |
 | Session log | Every delivered agent context records consumer, operation, and entity IDs | MCP test |
 
