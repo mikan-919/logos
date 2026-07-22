@@ -18,7 +18,15 @@ All workspace data is local and append-only at `.logos/events.jsonl`. Delete or 
 
 ## Five-minute walkthrough
 
-Run the commands from a project whose context you want Logos to maintain:
+The fastest way to feel the complete workflow is the local dashboard:
+
+```bash
+bun run /path/to/logos/src/cli.ts serve --port 4317
+```
+
+Open `http://localhost:4317` and select **Load sample workspace**. The dashboard immediately shows Active Context, connector representations, canonical links, evidence-backed hypotheses, and append-only activity. Accept or reject a candidate to see the semantic state update.
+
+For your own connector exports, run the commands from the project whose context you want Logos to maintain:
 
 ```bash
 bun run /path/to/logos/src/cli.ts init
@@ -32,18 +40,16 @@ bun run /path/to/logos/src/cli.ts agent context
 
 `resolve` creates reviewable hypotheses, not canonical facts. Inspect one with `explain <hypothesis-id>`, then use `hypothesis accept <id>` or `hypothesis reject <id>`.
 
-For the local review UI:
+The dashboard API exposes:
 
-```bash
-bun run /path/to/logos/src/cli.ts serve --port 4317
-```
-
-Open `http://localhost:4317`. The API behind it exposes:
-
+- `GET /api/overview`
 - `GET /api/entities`
 - `GET /api/relations`
 - `GET /api/hypotheses?status=candidate`
 - `GET /api/context`
+- `POST /api/demo`
+- `POST /api/resolve`
+- `POST /api/context/work/:id`
 - `POST /api/hypotheses/:id/accept`
 - `POST /api/hypotheses/:id/reject`
 

@@ -70,7 +70,53 @@ describe("HTTP review surface", () => {
     const app = createHttpApp(await workspace());
     const response = await app(new Request("http://logos.local/"));
     expect(response.headers.get("content-type")).toContain("text/html");
-    expect(await response.text()).toContain("Semantic Review");
+    const html = await response.text();
+    expect(html).toContain("Semantic workspace");
+    expect(html).toContain("Load sample workspace");
+    expect(html).toContain("Active context");
+    expect(html).toContain("Semantic links");
+  });
+
+  test("loads a demonstrable workspace and exposes a meaningful overview", async () => {
+    const root = await workspace();
+    const app = createHttpApp(root);
+    const empty = await app(new Request("http://logos.local/api/overview"));
+    expect(await empty.json()).toMatchObject({
+      metrics: { entities: 0, relations: 0, candidates: 0 },
+      activeContext: { entities: [] },
+    });
+
+    const demo = await app(new Request("http://logos.local/api/demo", { method: "POST" }));
+    expect(demo.status).toBe(200);
+    expect(await demo.json()).toMatchObject({ loaded: true, proposed: 3 });
+
+    const populated = await app(new Request("http://logos.local/api/overview"));
+    const overview = (await populated.json()) as {
+      metrics: { entities: number; relations: number; candidates: number; components: number };
+      activeContext: { entities: Array<{ type: string; title: string }> };
+      activity: Array<{ type: string }>;
+      hypotheses: Array<{ evidence: unknown[] }>;
+    };
+    expect(overview.metrics).toMatchObject({ entities: 6, relations: 5, candidates: 3, components: 6 });
+    expect(overview.activeContext.entities).toContainEqual(
+      expect.objectContaining({ type: "WorkItem", title: "Define cache policy" }),
+    );
+    expect(overview.hypotheses[0]?.evidence.length).toBeGreaterThan(0);
+    expect(overview.activity.length).toBeGreaterThan(0);
+  });
+
+  test("can run resolution and change active work from the dashboard API", async () => {
+    const root = await workspace();
+    const kernel = await LogosKernel.open(root);
+    const work = await kernel.createEntity("WorkItem", "Ship audit log");
+    const app = createHttpApp(root);
+    const activate = await app(
+      new Request(`http://logos.local/api/context/work/${work.id}`, { method: "POST" }),
+    );
+    expect(activate.status).toBe(200);
+    expect(await activate.json()).toMatchObject({ workItemId: work.id });
+    const resolve = await app(new Request("http://logos.local/api/resolve", { method: "POST" }));
+    expect(resolve.status).toBe(200);
   });
 });
 
