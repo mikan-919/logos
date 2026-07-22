@@ -1,0 +1,19 @@
+{
+  "name": "logos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "logos": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "logos": "bun run src/cli.ts",
+    "start": "bun run src/cli.ts serve"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
+  }
+}
