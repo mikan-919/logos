@@ -10,7 +10,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "logos": "bun run src/cli.ts",
-    "start": "bun run src/cli.ts serve"
+    "start": "bun run src/cli.ts serve",
+    "workspace": "bun run src/workspace/cli.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

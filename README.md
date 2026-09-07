@@ -14,7 +14,19 @@ bun test
 bun run typecheck
 ```
 
-All workspace data is local and append-only at `.logos/events.jsonl`. Delete or export that file using normal filesystem tooling; Logos does not send connector data to an external service.
+All semantic-context MVP data is local and append-only at `.logos/events.jsonl`. Delete or export that file using normal filesystem tooling; Logos does not send connector data to an external service.
+
+## Functional workspace prototype
+
+The functional workspace prototype is isolated from the semantic-context MVP. Start its input UI with:
+
+```bash
+bun run workspace serve --port 4318
+```
+
+Open `http://localhost:4318` to create an entity and attach or update Body and Schedule components. Its current state and command history are committed together in `.logos-workspace/workspace.sqlite`; it does not read or migrate `.logos/events.jsonl`.
+
+The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md).
 
 ## Five-minute walkthrough
 
