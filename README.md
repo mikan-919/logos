@@ -28,6 +28,8 @@ Open `http://localhost:4318` to use the entity list, composed detail view, and w
 
 The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled-component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md).
 
+The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.
+
 ## Five-minute walkthrough
 
 The fastest way to feel the complete workflow is the local dashboard:
