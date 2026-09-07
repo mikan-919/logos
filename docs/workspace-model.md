@@ -68,9 +68,11 @@ Commandは更新の唯一の入口とする。各Commandは`operationId`と`acto
 
 Projectionは保存された状態から画面用の読み取り結果を作り、更新時はCommandを呼ぶ。独自の正本を持たない。
 
-- 一覧: 全Entity。Componentの有無やProgress状態による絞り込みは後続工程で加える。
+- 一覧: 全Entity。名前、Progressの有無、Progress状態で絞り込む。
 - 詳細: Entityと全Component。有効な既知Componentは編集、未知Componentは読み取り専用で表示する。
-- 週カレンダー: 有効なScheduleを持つEntity。後続工程で加える。
+- 週カレンダー: 指定範囲と重なる有効なScheduleを持つEntity。Progressがあれば状態も表示する。
+
+一覧、詳細、週カレンダーは現在状態から毎回作る。保存成功後はServer-Sent Eventsで別画面へ変更を通知し、ブラウザーの画面復帰時にも再取得する。注: Server-Sent Eventsは、HTTP接続を通じてサーバーからブラウザーへ更新を通知する方式である。
 
 ## 対象境界の例
 
@@ -107,4 +109,16 @@ Projectionは保存された状態から画面用の読み取り結果を作り�
 4. Kernelを閉じて開き直し、同じ状態と履歴を読む。
 5. 無効なSchedule、古いrevision、同じ`operationId`の再送を検査する。
 
-一覧、詳細、週カレンダー、Relation、通知、履歴画面、エクスポートは工程2以降で扱う。
+## 工程2の実装範囲
+
+工程2では次を通す。
+
+1. 三つのComponentの有無による8通りを一覧と詳細から扱う。
+2. Progressの有無と状態、名前で一覧を絞り込む。
+3. Scheduleの日時範囲から週カレンダーを作り、同じEntityの詳細を開く。
+4. Componentを論理的に解除し、保存済みデータから復元する。
+5. 別Entityへの`references`を追加・解除し、作成操作と作成者を保持する。
+6. 別画面の更新を通知し、入力中の競合では入力内容と最新状態を表示する。
+7. 未知Componentを読み取り専用で表示し、既知Componentの更新時にも保持する。
+
+履歴画面、エクスポート、イベントからの再構築は工程4で扱う。カレンダーのドラッグ操作は、フォームによる日時変更の利用確認後に判断する。

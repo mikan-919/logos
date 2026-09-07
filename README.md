@@ -24,7 +24,7 @@ The functional workspace prototype is isolated from the semantic-context MVP. St
 bun run workspace serve --port 4318
 ```
 
-Open `http://localhost:4318` to create an entity and attach or update Body and Schedule components. Its current state and command history are committed together in `.logos-workspace/workspace.sqlite`; it does not read or migrate `.logos/events.jsonl`.
+Open `http://localhost:4318` to use the entity list, composed detail view, and week calendar. Body, Progress, and Schedule components can be added, updated, disabled, and restored. Entity references and cross-view refresh use the same command boundary. Current state and command history are committed together in `.logos-workspace/workspace.sqlite`; the prototype does not read or migrate `.logos/events.jsonl`.
 
 The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md).
 

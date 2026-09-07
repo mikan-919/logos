@@ -47,6 +47,37 @@ export interface WorkspaceEntityView extends WorkspaceEntity {
   components: WorkspaceComponent[];
 }
 
+export interface WorkspaceRelation {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  type: "references";
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  createdOperationId: string;
+  removedAt?: string;
+}
+
+export interface WorkspaceReferences {
+  outgoing: WorkspaceRelation[];
+  incoming: WorkspaceRelation[];
+}
+
+export interface EntityQuery {
+  name?: string;
+  hasProgress?: boolean;
+  progress?: ProgressStatus;
+  includeArchived?: boolean;
+}
+
+export interface CalendarEntry {
+  entity: WorkspaceEntity;
+  schedule: WorkspaceComponent<ScheduleData>;
+  progress?: WorkspaceComponent<ProgressData>;
+}
+
 export type WorkspaceCommandName =
   | "entity.create"
   | "entity.rename"
@@ -55,7 +86,9 @@ export type WorkspaceCommandName =
   | "component.add"
   | "component.disable"
   | "component.restore"
-  | "component.update";
+  | "component.update"
+  | "relation.add"
+  | "relation.remove";
 
 export interface WorkspaceEvent {
   id: string;

@@ -7,6 +7,7 @@ import type {
   WorkspaceEntity,
   WorkspaceEntityView,
   WorkspaceEvent,
+  WorkspaceRelation,
 } from "./types";
 
 interface EntityRow {
@@ -40,6 +41,19 @@ interface EventRow {
   changes_json: string;
   actor: string;
   at: string;
+}
+
+interface RelationRow {
+  id: string;
+  from_entity_id: string;
+  to_entity_id: string;
+  type: "references";
+  active: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  created_operation_id: string;
+  removed_at: string | null;
 }
 
 function entityFromRow(row: EntityRow): WorkspaceEntity {
@@ -78,6 +92,21 @@ function eventFromRow(row: EventRow): WorkspaceEvent {
     changes: JSON.parse(row.changes_json) as Record<string, unknown>,
     actor: row.actor,
     at: row.at,
+  };
+}
+
+function relationFromRow(row: RelationRow): WorkspaceRelation {
+  return {
+    id: row.id,
+    fromEntityId: row.from_entity_id,
+    toEntityId: row.to_entity_id,
+    type: row.type,
+    active: row.active === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdBy: row.created_by,
+    createdOperationId: row.created_operation_id,
+    ...(row.removed_at ? { removedAt: row.removed_at } : {}),
   };
 }
 
@@ -127,10 +156,27 @@ export class WorkspaceStore {
         actor TEXT NOT NULL,
         at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS relations (
+        id TEXT PRIMARY KEY,
+        from_entity_id TEXT NOT NULL REFERENCES entities(id),
+        to_entity_id TEXT NOT NULL REFERENCES entities(id),
+        type TEXT NOT NULL CHECK (type = 'references'),
+        active INTEGER NOT NULL CHECK (active IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_operation_id TEXT NOT NULL,
+        removed_at TEXT,
+        UNIQUE (from_entity_id, to_entity_id, type)
+      );
       CREATE INDEX IF NOT EXISTS components_type_active
         ON components(type_id, active);
       CREATE INDEX IF NOT EXISTS events_entity_sequence
         ON events(entity_id, sequence);
+      CREATE INDEX IF NOT EXISTS relations_from_active
+        ON relations(from_entity_id, active);
+      CREATE INDEX IF NOT EXISTS relations_to_active
+        ON relations(to_entity_id, active);
     `);
     return new WorkspaceStore(database, path);
   }
@@ -194,10 +240,36 @@ export class WorkspaceStore {
     return rows.map(eventFromRow);
   }
 
+  relation(fromEntityId: string, toEntityId: string): WorkspaceRelation | undefined {
+    const row = this.database
+      .query<RelationRow, [string, string]>(
+        "SELECT * FROM relations WHERE from_entity_id = ? AND to_entity_id = ? AND type = 'references'",
+      )
+      .get(fromEntityId, toEntityId);
+    return row ? relationFromRow(row) : undefined;
+  }
+
+  references(entityId: string): { outgoing: WorkspaceRelation[]; incoming: WorkspaceRelation[] } {
+    const outgoing = this.database
+      .query<RelationRow, [string]>(
+        "SELECT * FROM relations WHERE from_entity_id = ? AND active = 1 ORDER BY created_at, id",
+      )
+      .all(entityId)
+      .map(relationFromRow);
+    const incoming = this.database
+      .query<RelationRow, [string]>(
+        "SELECT * FROM relations WHERE to_entity_id = ? AND active = 1 ORDER BY created_at, id",
+      )
+      .all(entityId)
+      .map(relationFromRow);
+    return { outgoing, incoming };
+  }
+
   save(
     entity: WorkspaceEntity,
     event: WorkspaceEvent,
     component?: WorkspaceComponent,
+    relation?: WorkspaceRelation,
   ): void {
     const transaction = this.database.transaction(() => {
       if (event.beforeRevision === -1) {
@@ -264,6 +336,32 @@ export class WorkspaceStore {
             component.createdAt,
             component.updatedAt,
             component.disabledAt ?? null,
+          );
+      }
+
+      if (relation) {
+        this.database
+          .query(
+            `INSERT INTO relations
+              (id, from_entity_id, to_entity_id, type, active, created_at, updated_at,
+               created_by, created_operation_id, removed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(from_entity_id, to_entity_id, type) DO UPDATE SET
+               active = excluded.active,
+               updated_at = excluded.updated_at,
+               removed_at = excluded.removed_at`,
+          )
+          .run(
+            relation.id,
+            relation.fromEntityId,
+            relation.toEntityId,
+            relation.type,
+            relation.active ? 1 : 0,
+            relation.createdAt,
+            relation.updatedAt,
+            relation.createdBy,
+            relation.createdOperationId,
+            relation.removedAt ?? null,
           );
       }
 
