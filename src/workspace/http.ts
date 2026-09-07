@@ -3,8 +3,6 @@ import {
   WorkspaceKernel,
   WorkspaceValidationError,
 } from "./kernel";
-import type { ComponentDataMap, ComponentTypeId } from "./types";
-import { COMPONENT_TYPE_IDS } from "./types";
 import { workspacePage } from "./ui";
 
 const json = (value: unknown, status = 200): Response =>
@@ -27,11 +25,11 @@ async function body(request: Request): Promise<CommandBody> {
   }
 }
 
-function typeId(value: string): ComponentTypeId {
-  if (!COMPONENT_TYPE_IDS.includes(value as ComponentTypeId)) {
+function typeId(kernel: WorkspaceKernel, value: string): string {
+  if (!kernel.componentTypeIds().includes(value)) {
     throw new WorkspaceValidationError(`Unknown component type: ${value}`);
   }
-  return value as ComponentTypeId;
+  return value;
 }
 
 function operationId(value: string | undefined): string {
@@ -173,7 +171,7 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
       );
       if (restoreComponentMatch && request.method === "POST") {
         const entityId = decodeURIComponent(restoreComponentMatch[1]!);
-        const componentType = typeId(decodeURIComponent(restoreComponentMatch[2]!));
+        const componentType = typeId(kernel, decodeURIComponent(restoreComponentMatch[2]!));
         const input = await body(request);
         const entity = kernel.restoreComponent(entityId, componentType, {
           operationId: operationId(input.operationId),
@@ -187,7 +185,7 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
       );
       if (componentMatch && (request.method === "POST" || request.method === "PUT" || request.method === "DELETE")) {
         const entityId = decodeURIComponent(componentMatch[1]!);
-        const componentType = typeId(decodeURIComponent(componentMatch[2]!));
+        const componentType = typeId(kernel, decodeURIComponent(componentMatch[2]!));
         const input = await body(request);
         const metadata = {
           operationId: operationId(input.operationId),
@@ -203,7 +201,7 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
               entityId,
               componentType,
               metadata,
-              input.data as ComponentDataMap[typeof componentType] | undefined,
+              input.data,
           );
           notify(entityId);
           return json(entity, 201);
@@ -211,7 +209,7 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
         const entity = kernel.updateComponent(
             entityId,
             componentType,
-            input.data as ComponentDataMap[typeof componentType],
+            input.data,
             metadata,
         );
         notify(entityId);

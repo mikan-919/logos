@@ -1,11 +1,9 @@
 import { RevisionConflictError, WorkspaceValidationError } from "./errors";
-import { featureDefinition, isKnownComponentType } from "./features";
+import { ComponentRegistry, workspaceComponentRegistry } from "./features";
 import { WorkspaceStore } from "./store";
 import type {
   CommandMetadata,
   CalendarEntry,
-  ComponentDataMap,
-  ComponentTypeId,
   EntityQuery,
   ProgressData,
   ScheduleData,
@@ -31,10 +29,16 @@ function actor(metadata: { actor?: string }): string {
 }
 
 export class WorkspaceKernel {
-  private constructor(private readonly store: WorkspaceStore) {}
+  private constructor(
+    private readonly store: WorkspaceStore,
+    private readonly componentRegistry: ComponentRegistry,
+  ) {}
 
-  static async open(workspace: string): Promise<WorkspaceKernel> {
-    return new WorkspaceKernel(await WorkspaceStore.open(workspace));
+  static async open(
+    workspace: string,
+    componentRegistry: ComponentRegistry = workspaceComponentRegistry,
+  ): Promise<WorkspaceKernel> {
+    return new WorkspaceKernel(await WorkspaceStore.open(workspace), componentRegistry);
   }
 
   close(): void {
@@ -43,6 +47,10 @@ export class WorkspaceKernel {
 
   databasePath(): string {
     return this.store.path;
+  }
+
+  componentTypeIds(): string[] {
+    return this.componentRegistry.typeIds();
   }
 
   get(entityId: string): WorkspaceEntityView | undefined {
@@ -83,7 +91,7 @@ export class WorkspaceKernel {
         (component) => component.typeId === "schedule" && component.active,
       );
       if (!rawSchedule) return [];
-      const scheduleData = featureDefinition("schedule").validate(rawSchedule.data);
+      const scheduleData = this.componentRegistry.get<ScheduleData>("schedule").validate(rawSchedule.data);
       if (Date.parse(scheduleData.startUtc) >= end || Date.parse(scheduleData.endUtc) <= start) {
         return [];
       }
@@ -92,7 +100,7 @@ export class WorkspaceKernel {
         (component) => component.typeId === "progress" && component.active,
       );
       const progress = rawProgress
-        ? { ...rawProgress, data: featureDefinition("progress").validate(rawProgress.data) }
+        ? { ...rawProgress, data: this.componentRegistry.get<ProgressData>("progress").validate(rawProgress.data) }
         : undefined;
       return [{
         entity: {
@@ -166,15 +174,15 @@ export class WorkspaceKernel {
     });
   }
 
-  addComponent<T extends ComponentTypeId>(
+  addComponent<T = unknown>(
     entityId: string,
-    typeId: T,
+    typeId: string,
     metadata: CommandMetadata,
-    initialData?: ComponentDataMap[T],
+    initialData?: T,
   ): WorkspaceEntityView {
     return this.mutateComponent(entityId, typeId, "component.add", metadata, (current, at) => {
       if (current?.active) return { component: current, changes: { typeId, unchanged: true }, increment: false };
-      const definition = featureDefinition(typeId);
+      const definition = this.componentRegistry.get<T>(typeId);
       const data = current?.data ?? initialData ?? definition.initialData?.();
       if (data === undefined) {
         throw new WorkspaceValidationError(`Initial data is required for ${typeId}`);
@@ -198,7 +206,7 @@ export class WorkspaceKernel {
 
   disableComponent(
     entityId: string,
-    typeId: ComponentTypeId,
+    typeId: string,
     metadata: CommandMetadata,
   ): WorkspaceEntityView {
     return this.mutateComponent(entityId, typeId, "component.disable", metadata, (current, at) => {
@@ -215,7 +223,7 @@ export class WorkspaceKernel {
 
   restoreComponent(
     entityId: string,
-    typeId: ComponentTypeId,
+    typeId: string,
     metadata: CommandMetadata,
   ): WorkspaceEntityView {
     return this.mutateComponent(entityId, typeId, "component.restore", metadata, (current, at) => {
@@ -231,17 +239,17 @@ export class WorkspaceKernel {
     });
   }
 
-  updateComponent<T extends ComponentTypeId>(
+  updateComponent<T = unknown>(
     entityId: string,
-    typeId: T,
-    data: ComponentDataMap[T],
+    typeId: string,
+    data: T,
     metadata: CommandMetadata,
   ): WorkspaceEntityView {
     return this.mutateComponent(entityId, typeId, "component.update", metadata, (current, at) => {
       if (!current?.active) {
         throw new WorkspaceValidationError(`Active component not found: ${typeId}`);
       }
-      const definition = featureDefinition(typeId);
+      const definition = this.componentRegistry.get<T>(typeId);
       const validated = definition.validate(data);
       return {
         component: {
@@ -345,7 +353,7 @@ export class WorkspaceKernel {
 
   private mutateComponent(
     entityId: string,
-    typeId: ComponentTypeId,
+    typeId: string,
     command: WorkspaceCommandName,
     metadata: CommandMetadata,
     change: (
@@ -353,7 +361,7 @@ export class WorkspaceKernel {
       at: string,
     ) => { component: WorkspaceComponent; changes: Record<string, unknown>; increment: boolean },
   ): WorkspaceEntityView {
-    if (!isKnownComponentType(typeId)) {
+    if (!this.componentRegistry.has(typeId)) {
       throw new WorkspaceValidationError(`Unknown component type: ${typeId}`);
     }
     const replay = this.replay(metadata.operationId, command);
