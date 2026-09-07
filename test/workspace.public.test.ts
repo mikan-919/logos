@@ -504,6 +504,7 @@ describe("functional workspace HTTP surface", () => {
     const html = await response.text();
     expect(html).toContain("対象一覧");
     expect(html).toContain("週カレンダー");
+    expect(html).toContain("見積時間一覧");
     expect(html).toContain("保存した値を復元");
     expect(html).toContain("未対応のComponent");
     const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];

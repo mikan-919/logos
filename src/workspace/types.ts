@@ -1,6 +1,3 @@
-export const COMPONENT_TYPE_IDS = ["body", "progress", "schedule"] as const;
-
-export type ComponentTypeId = (typeof COMPONENT_TYPE_IDS)[number];
 export type ProgressStatus = "todo" | "doing" | "done";
 
 export interface BodyData {
@@ -15,12 +12,6 @@ export interface ScheduleData {
   startUtc: string;
   endUtc: string;
   timeZone: string;
-}
-
-export interface ComponentDataMap {
-  body: BodyData;
-  progress: ProgressData;
-  schedule: ScheduleData;
 }
 
 export interface WorkspaceEntity {

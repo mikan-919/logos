@@ -2,6 +2,7 @@ import { WorkspaceValidationError } from "./errors";
 import { bodyDefinition } from "./components/body";
 import { progressDefinition } from "./components/progress";
 import { scheduleDefinition } from "./components/schedule";
+import { estimateDefinition } from "./components/estimate";
 
 export interface FeatureDefinition<T = unknown> {
   typeId: string;
@@ -47,4 +48,5 @@ export const workspaceComponentRegistry = new ComponentRegistry([
   bodyDefinition,
   progressDefinition,
   scheduleDefinition,
+  estimateDefinition,
 ]);

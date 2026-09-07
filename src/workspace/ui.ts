@@ -43,6 +43,7 @@ export const workspacePage = `<!doctype html>
     <nav aria-label="表示">
       <button id="nav-list" aria-current="page">対象一覧</button>
       <button id="nav-calendar">週カレンダー</button>
+      <button id="nav-estimates">見積時間一覧</button>
     </nav>
   </header>
 
@@ -105,6 +106,14 @@ export const workspacePage = `<!doctype html>
           <div class="actions"><button id="schedule-submit">実施予定を追加</button><button id="schedule-toggle" type="button" hidden></button></div>
         </form>
       </article>
+      <article>
+        <h3>見積時間</h3>
+        <p id="estimate-state" class="muted"></p>
+        <form id="estimate-form">
+          <label>分<input id="estimate-minutes" type="number" min="1" step="5" required></label>
+          <div class="actions"><button id="estimate-submit">見積時間機能を追加</button><button id="estimate-toggle" type="button" hidden></button></div>
+        </form>
+      </article>
     </div>
     <article>
       <h3>参照</h3>
@@ -119,6 +128,12 @@ export const workspacePage = `<!doctype html>
       <p class="muted">この実装では編集できません。データは保持されます。</p>
       <div id="unknown-component-list"></div>
     </article>
+  </section>
+
+  <section id="estimate-view" hidden>
+    <h2>見積時間一覧</h2>
+    <p>合計: <strong id="estimate-total">0分</strong></p>
+    <div id="estimate-list" class="entity-list"></div>
   </section>
 
   <section id="calendar-view" hidden>
@@ -138,7 +153,8 @@ export const workspacePage = `<!doctype html>
   const byId = (id) => document.getElementById(id);
   const operationId = () => crypto.randomUUID();
   const component = (entity, typeId, activeOnly = true) => entity.components.find((item) => item.typeId === typeId && (!activeOnly || item.active));
-  const featureLabel = { body: '本文', progress: '進捗', schedule: '実施予定' };
+  const featureLabel = { body: '本文', progress: '進捗', schedule: '実施予定', estimate: '見積時間' };
+  const addFeatureLabel = { body: '本文機能を追加', progress: '進捗を管理', schedule: '実施予定を追加', estimate: '見積時間を追加' };
   const progressLabel = { todo: '未着手', doing: '進行中', done: '完了' };
 
   async function api(path, options) {
@@ -202,8 +218,10 @@ export const workspacePage = `<!doctype html>
     byId('list-view').hidden = currentView !== 'list';
     byId('detail-view').hidden = currentView !== 'detail';
     byId('calendar-view').hidden = currentView !== 'calendar';
+    byId('estimate-view').hidden = currentView !== 'estimates';
     byId('nav-list').setAttribute('aria-current', currentView === 'list' ? 'page' : 'false');
     byId('nav-calendar').setAttribute('aria-current', currentView === 'calendar' ? 'page' : 'false');
+    byId('nav-estimates').setAttribute('aria-current', currentView === 'estimates' ? 'page' : 'false');
   }
   function renderDetail(preserveInputs) {
     if (!selected) return;
@@ -215,6 +233,7 @@ export const workspacePage = `<!doctype html>
     renderFeature('body', preserveInputs);
     renderFeature('progress', preserveInputs);
     renderFeature('schedule', preserveInputs);
+    renderFeature('estimate', preserveInputs);
     const unknown = selected.components.filter((item) => !Object.hasOwn(featureLabel, item.typeId));
     byId('unknown-components').hidden = unknown.length === 0;
     const unknownList = byId('unknown-component-list');
@@ -239,7 +258,7 @@ export const workspacePage = `<!doctype html>
     const stored = component(selected, typeId, false);
     const active = stored?.active;
     byId(typeId + '-state').textContent = active ? '有効' : stored ? '解除済み。保存した値から復元できます。' : '未追加';
-    byId(typeId + '-submit').textContent = active ? '保存' : stored ? '保存した値を復元' : typeId === 'body' ? '本文機能を追加' : typeId === 'progress' ? '進捗機能を追加' : '実施予定を追加';
+    byId(typeId + '-submit').textContent = active ? '保存' : stored ? '保存した値を復元' : addFeatureLabel[typeId] || (featureLabel[typeId] || typeId) + '機能を追加';
     byId(typeId + '-submit').dataset.mode = active ? 'save' : stored ? 'restore' : 'add';
     const toggle = byId(typeId + '-toggle');
     toggle.hidden = !active;
@@ -247,6 +266,7 @@ export const workspacePage = `<!doctype html>
     if (!stored && !preserveInputs) {
       if (typeId === 'body') byId('body-markdown').value = '';
       if (typeId === 'progress') byId('progress-status').value = 'todo';
+      if (typeId === 'estimate') byId('estimate-minutes').value = '';
       if (typeId === 'schedule') {
         byId('schedule-start').value = '';
         byId('schedule-end').value = '';
@@ -256,6 +276,7 @@ export const workspacePage = `<!doctype html>
     if (preserveInputs || !stored) return;
     if (typeId === 'body') byId('body-markdown').value = stored.data.markdown;
     if (typeId === 'progress') byId('progress-status').value = stored.data.status;
+    if (typeId === 'estimate') byId('estimate-minutes').value = stored.data.minutes;
     if (typeId === 'schedule') {
       byId('schedule-zone').value = stored.data.timeZone;
       byId('schedule-start').value = localValue(stored.data.startUtc, stored.data.timeZone);
@@ -408,10 +429,36 @@ export const workspacePage = `<!doctype html>
       calendar.append(day);
     }
   }
+  function formatMinutes(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (!hours) return remainder + '分';
+    return hours + '時間' + (remainder ? remainder + '分' : '');
+  }
+  async function loadEstimates() {
+    const value = await api('/api/workspace/estimates');
+    byId('estimate-total').textContent = formatMinutes(value.totalMinutes);
+    const list = byId('estimate-list');
+    list.replaceChildren();
+    for (const entry of value.entries) {
+      const button = document.createElement('button');
+      button.className = 'entity';
+      button.type = 'button';
+      const name = document.createElement('strong');
+      name.textContent = entry.entity.name;
+      const duration = document.createElement('span');
+      duration.textContent = formatMinutes(entry.estimate.data.minutes);
+      button.append(name, duration);
+      button.onclick = () => openDetail(entry.entity.id);
+      list.append(button);
+    }
+    if (!value.entries.length) list.textContent = '見積時間を持つ対象はありません。';
+  }
 
   byId('nav-list').onclick = async () => { currentView = 'list'; setView(); await loadList(); };
   byId('back-list').onclick = byId('nav-list').onclick;
   byId('nav-calendar').onclick = async () => { currentView = 'calendar'; setView(); await loadCalendar(); };
+  byId('nav-estimates').onclick = async () => { currentView = 'estimates'; setView(); await loadEstimates(); };
   byId('create-form').onsubmit = async (event) => {
     event.preventDefault();
     try {
@@ -434,8 +481,13 @@ export const workspacePage = `<!doctype html>
       await mutateFeature('schedule', { startUtc: utcValue(byId('schedule-start').value, timeZone), endUtc: utcValue(byId('schedule-end').value, timeZone), timeZone });
     } catch (error) { handleError(error); }
   };
-  for (const typeId of ['body', 'progress', 'schedule']) byId(typeId + '-toggle').onclick = () => disableFeature(typeId).catch(handleError);
-  for (const input of ['detail-name', 'body-markdown', 'progress-status', 'schedule-start', 'schedule-end', 'schedule-zone']) {
+  byId('estimate-form').onsubmit = async (event) => {
+    event.preventDefault();
+    try { await mutateFeature('estimate', { minutes: Number(byId('estimate-minutes').value) }); }
+    catch (error) { handleError(error); }
+  };
+  for (const typeId of ['body', 'progress', 'schedule', 'estimate']) byId(typeId + '-toggle').onclick = () => disableFeature(typeId).catch(handleError);
+  for (const input of ['detail-name', 'body-markdown', 'progress-status', 'schedule-start', 'schedule-end', 'schedule-zone', 'estimate-minutes']) {
     byId(input).addEventListener('input', () => { detailDirty = true; });
   }
   byId('reference-form').onsubmit = (event) => { event.preventDefault(); addReference().catch(handleError); };
@@ -448,6 +500,7 @@ export const workspacePage = `<!doctype html>
       await loadAll();
       if (currentView === 'list') await loadList();
       if (currentView === 'calendar') await loadCalendar();
+      if (currentView === 'estimates') await loadEstimates();
       if (currentView === 'detail' && selected) {
         selected = await api('/api/workspace/entities/' + selected.id);
         renderDetail(detailDirty);

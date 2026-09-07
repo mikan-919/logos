@@ -4,6 +4,7 @@ import {
   WorkspaceValidationError,
 } from "./kernel";
 import { workspacePage } from "./ui";
+import { estimateProjection } from "./projections/estimate";
 
 const json = (value: unknown, status = 200): Response =>
   Response.json(value, { status, headers: { "cache-control": "no-store" } });
@@ -112,6 +113,9 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
             url.searchParams.get("endUtc") ?? "",
           ),
         });
+      }
+      if (request.method === "GET" && url.pathname === "/api/workspace/estimates") {
+        return json(estimateProjection(kernel.list()));
       }
       const entityMatch = url.pathname.match(/^\/api\/workspace\/entities\/([^/]+)$/);
       if (entityMatch && request.method === "GET") {

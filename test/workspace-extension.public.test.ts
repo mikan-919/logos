@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { WorkspaceValidationError } from "../src/workspace/errors";
 import { ComponentRegistry } from "../src/workspace/features";
 import { WorkspaceKernel } from "../src/workspace/kernel";
+import { createWorkspaceHttpApp } from "../src/workspace/http";
+import { estimateProjection } from "../src/workspace/projections/estimate";
 
 const workspaces: string[] = [];
 
@@ -58,5 +60,75 @@ describe("workspace component registry", () => {
       { typeId: "same", schemaVersion: 1, validate: (value) => value },
       { typeId: "same", schemaVersion: 1, validate: (value) => value },
     ])).toThrow("Duplicate component type");
+  });
+
+  test("adds Estimate to existing entities without changing other component meanings", async () => {
+    const root = await workspace();
+    const kernel = await WorkspaceKernel.open(root);
+    let entity = kernel.createEntity("記事を書く", { operationId: "create-article" });
+    entity = kernel.addComponent(
+      entity.id,
+      "body",
+      { operationId: "add-body", expectedRevision: entity.revision },
+      { markdown: "記事の本文" },
+    );
+    const originalId = entity.id;
+    entity = kernel.addComponent(
+      entity.id,
+      "estimate",
+      { operationId: "add-estimate", expectedRevision: entity.revision },
+      { minutes: 90 },
+    );
+
+    expect(kernel.componentTypeIds()).toEqual(["body", "progress", "schedule", "estimate"]);
+    expect(entity.id).toBe(originalId);
+    expect(entity.components).toEqual([
+      expect.objectContaining({ typeId: "body", data: { markdown: "記事の本文" } }),
+      expect.objectContaining({ typeId: "estimate", schemaVersion: 1, data: { minutes: 90 } }),
+    ]);
+    const historyLength = kernel.history(entity.id).length;
+    expect(() => kernel.updateComponent(
+      entity.id,
+      "estimate",
+      { minutes: 0 },
+      { operationId: "invalid-estimate", expectedRevision: entity.revision },
+    )).toThrow("positive integer");
+    expect(kernel.get(entity.id)?.revision).toBe(entity.revision);
+    expect(kernel.history(entity.id)).toHaveLength(historyLength);
+    kernel.close();
+  });
+
+  test("builds an Estimate projection and exposes it over HTTP", async () => {
+    const root = await workspace();
+    const kernel = await WorkspaceKernel.open(root);
+    let article = kernel.createEntity("記事", { operationId: "create-article" });
+    article = kernel.addComponent(
+      article.id,
+      "estimate",
+      { operationId: "estimate-article", expectedRevision: article.revision },
+      { minutes: 90 },
+    );
+    let meeting = kernel.createEntity("勉強会", { operationId: "create-meeting" });
+    meeting = kernel.addComponent(
+      meeting.id,
+      "estimate",
+      { operationId: "estimate-meeting", expectedRevision: meeting.revision },
+      { minutes: 30 },
+    );
+    kernel.createEntity("見積なし", { operationId: "create-without-estimate" });
+    expect(estimateProjection(kernel.list())).toMatchObject({
+      totalMinutes: 120,
+      entries: [
+        { entity: { id: article.id }, estimate: { data: { minutes: 90 } } },
+        { entity: { id: meeting.id }, estimate: { data: { minutes: 30 } } },
+      ],
+    });
+    kernel.close();
+
+    const response = await createWorkspaceHttpApp(root)(
+      new Request("http://logos.local/api/workspace/estimates"),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ totalMinutes: 120 });
   });
 });

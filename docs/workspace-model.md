@@ -122,3 +122,9 @@ Projectionは保存された状態から画面用の読み取り結果を作り�
 7. 未知Componentを読み取り専用で表示し、既知Componentの更新時にも保持する。
 
 履歴画面、エクスポート、イベントからの再構築は工程4で扱う。カレンダーのドラッグ操作は、フォームによる日時変更の利用確認後に判断する。
+
+## 工程3の実装範囲
+
+工程3ではComponent定義を登録簿へ分離し、四つ目の`estimate`を追加する。Estimateは正の整数の分数を保存し、見積時間一覧では有効なEstimateを持つEntityと合計分数を表示する。
+
+Estimate追加ではKernel、SQLiteの表、Body、Progress、Scheduleの定義を変更しない。登録方法は[workspace-features.md](workspace-features.md)に記録する。
