@@ -70,7 +70,7 @@
 - `createWorkspaceHttpApp`で履歴・エクスポート・復元API応答を確認
 - 履歴、エクスポート、復元のAPIと試験を追加。運用手順は[workspace-backup.md](workspace-backup.md)
 - 実サーバーはポート使用中のため起動確認を保留
-- 今回の履歴・バックアップ実装をJujutsuの単位として保存する
+- Jujutsuで保存したコミット: `00499169 feat: add workspace history backup and restore`
 
 ## 次の作業
 
