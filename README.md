@@ -38,6 +38,22 @@ bun run workspace mcp
 
 It exposes `logos_workspace_entities_list` and `logos_workspace_entity_get`. Both tools are read-only. The list is limited to at most 50 entities per call; the detail tool returns one Entity with its Components and references. Workspace writes remain behind the existing HTTP and shared Command boundary.
 
+Configure an MCP client with the project containing `.logos-workspace/` as `cwd`:
+
+```json
+{
+  "mcpServers": {
+    "logos-workspace": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/logos/src/workspace/cli.ts", "mcp"],
+      "cwd": "/absolute/path/to/your/workspace"
+    }
+  }
+}
+```
+
+The `cwd` setting selects the workspace database. It must not point at the Logos source repository unless that repository is the workspace you intend to read.
+
 The stage-five usage observation procedure and record template are in [docs/workspace-usage-observation.md](docs/workspace-usage-observation.md). It records actual use and comparison with existing tools without changing the workspace data model.
 
 The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.

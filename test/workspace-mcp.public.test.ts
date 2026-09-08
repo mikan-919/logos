@@ -27,6 +27,49 @@ async function call(root: string, name: string, args: Record<string, unknown> = 
 }
 
 describe("workspace MCP read interface", () => {
+  test("serves initialized tools and workspace data over stdio", async () => {
+    const root = await workspace();
+    const kernel = await WorkspaceKernel.open(root);
+    const entity = kernel.createEntity("Stdio task", { operationId: "create-stdio-task" });
+    kernel.close();
+
+    const process = Bun.spawn([
+      "bun",
+      "run",
+      join(import.meta.dir, "../src/workspace/cli.ts"),
+      "mcp",
+    ], {
+      cwd: root,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    process.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n${JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "logos_workspace_entity_get", arguments: { entityId: entity.id } },
+    })}\n`);
+    await process.stdin.flush();
+    process.stdin.end();
+
+    const [exitCode, stdout, stderr] = await Promise.all([
+      process.exited,
+      new Response(process.stdout).text(),
+      new Response(process.stderr).text(),
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe("");
+    const lines = stdout.trim().split("\n");
+    expect(lines).toHaveLength(2);
+    const responses = lines.map((line) => JSON.parse(line));
+    expect(responses[0].result.serverInfo).toMatchObject({ name: "logos-workspace" });
+    expect(JSON.parse(responses[1].result.content[0].text).entity).toMatchObject({
+      id: entity.id,
+      name: "Stdio task",
+    });
+  });
+
   test("advertises only bounded read tools", async () => {
     const response = await handleWorkspaceMcpMessage(await workspace(), {
       jsonrpc: "2.0",
