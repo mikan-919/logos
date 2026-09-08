@@ -74,7 +74,15 @@ HTTPから実行する場合は次の形式にする。
 ## 確認手順
 
 1. 元のワークスペースで「エクスポート」を押してJSONを保存する。
-2. 別の空ディレクトリから`bun run workspace serve --port 4318`を起動する。
+2. 空の作業領域で、リポジトリの絶対パスを指定して`bun run /path/to/logos/src/workspace/cli.ts serve --port 4318`を起動する（CLIは`process.cwd()`を保存先に使う）。
 3. JSONを指定して復元する。
 4. Entity ID、本文、Progress、Schedule、Estimate、Relation、履歴を確認する。
 5. 元のワークスペースと復元先のJSONを比較する。復元先には末尾の`workspace.restore`イベントと新しい`exportedAt`が追加される。
+
+## 実サーバーの自動確認
+
+`test/workspace-backup.e2e.public.test.ts`は、空の一時ディレクトリを二つ使い、別ポートで`src/workspace/cli.ts serve`を起動する。HTTPでEntity、Body、Progress、Schedule、Estimate、Relationを操作し、Relationの解除とComponentの無効化を含む状態を作る。未知Componentは保存形式の確認のため送信元SQLiteへ投入し、送信元サーバーを再起動してからエクスポートする。
+
+試験は別サーバーへ復元した後に再エクスポートし、Entity ID、Component状態、Estimate、Relation、解除済みRelation、履歴、未知Componentを比較する。復元先で差分として許可するのは`exportedAt`と末尾の`workspace.restore`イベントだけである。同じ復元`operationId`の再送でイベントが増えないことも確認する。
+
+実行コマンドは`bun test test/workspace-backup.e2e.public.test.ts`である。試験はローカルTCPポートを二つ使う。

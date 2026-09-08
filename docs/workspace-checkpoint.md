@@ -75,16 +75,18 @@
 
 - `bun run typecheck`成功
 - `bun test`成功
-- 現在の試験数: 49
+- 現在の試験数: 50
 - `createWorkspaceHttpApp`で履歴・エクスポート・復元API応答を確認
 - 履歴、エクスポート、復元のAPIと試験を追加。運用手順は[workspace-backup.md](workspace-backup.md)
 - サンプル投入の成功、再起動・履歴、非空拒否、再送、原子性、HTTP/UI入口を試験
-- 実サーバーはポート使用中のため起動確認を保留
+- `test/workspace-backup.e2e.public.test.ts`で別一時ディレクトリ・別ポートの実サーバーを使う端末間バックアップ・復元を確認
+- Entity ID、Component状態、Estimate、Relation、解除済みRelation、履歴、未知Componentを復元先で照合
+- 復元先の差分が`exportedAt`と末尾の`workspace.restore`イベントだけであることを確認
 - Jujutsuで保存したコミット: `00499169 feat: add workspace history backup and restore`
 
 ## 次の作業
 
-工程4の次の作業は、バックアップと復元を実データで確認し、履歴表示と入力エラーの運用上の問題を記録すること。
+工程4のバックアップ・復元確認は完了した。工程5は利用観察である。
 
 推奨順序:
 
@@ -92,7 +94,9 @@
 2. ~~バージョン付きエクスポート形式を定義し、未知Componentを保持する。~~
 3. ~~一時ディレクトリへ復元して、Entity ID、Component状態、Relation、履歴を照合する。~~
 4. UIへ復元確認とサンプル投入を追加した。エラー表示は既存。
-5. 実データを使う前に[バックアップと復元の手順](workspace-backup.md)を確認し、実サーバーで操作する。
+5. ~~実データを使う前に[バックアップと復元の手順](workspace-backup.md)を確認し、実サーバーで操作する。~~
+
+工程5では実データの反復利用と既存手段との差を記録する。
 
 ## 守る境界
 
