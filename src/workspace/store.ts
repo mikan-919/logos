@@ -1,12 +1,14 @@
 import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { RevisionConflictError } from "./errors";
+import { WORKSPACE_EXPORT_FORMAT, WORKSPACE_EXPORT_VERSION } from "./backup";
+import { RevisionConflictError, WorkspaceValidationError } from "./errors";
 import type {
   WorkspaceComponent,
   WorkspaceEntity,
   WorkspaceEntityView,
   WorkspaceEvent,
+  WorkspaceExport,
   WorkspaceRelation,
 } from "./types";
 
@@ -240,6 +242,47 @@ export class WorkspaceStore {
     return rows.map(eventFromRow);
   }
 
+  relations(): WorkspaceRelation[] {
+    return this.database
+      .query<RelationRow, []>("SELECT * FROM relations ORDER BY created_at, id")
+      .all()
+      .map(relationFromRow);
+  }
+
+  exportWorkspace(exportedAt: string): WorkspaceExport {
+    const views = this.entities();
+    const entities = views.map((view) => {
+      const { components: _components, ...entity } = view;
+      return entity;
+    });
+    return {
+      format: WORKSPACE_EXPORT_FORMAT,
+      version: WORKSPACE_EXPORT_VERSION,
+      exportedAt,
+      entities,
+      components: views.flatMap((view) => view.components),
+      relations: this.relations(),
+      events: this.events(),
+    };
+  }
+
+  isEmpty(): boolean {
+    const counts = this.database
+      .query<{ entities: number; components: number; relations: number; events: number }, []>(
+        `SELECT
+           (SELECT COUNT(*) FROM entities) AS entities,
+           (SELECT COUNT(*) FROM components) AS components,
+           (SELECT COUNT(*) FROM relations) AS relations,
+           (SELECT COUNT(*) FROM events) AS events`,
+      )
+      .get();
+    return counts !== null
+      && counts.entities === 0
+      && counts.components === 0
+      && counts.relations === 0
+      && counts.events === 0;
+  }
+
   relation(fromEntityId: string, toEntityId: string): WorkspaceRelation | undefined {
     const row = this.database
       .query<RelationRow, [string, string]>(
@@ -384,6 +427,94 @@ export class WorkspaceStore {
           event.actor,
           event.at,
         );
+    });
+    transaction.immediate();
+  }
+
+  restore(snapshot: WorkspaceExport, restoreEvent: WorkspaceEvent): void {
+    const transaction = this.database.transaction(() => {
+      if (!this.isEmpty()) {
+        throw new WorkspaceValidationError("Restore requires an empty workspace");
+      }
+
+      for (const entity of snapshot.entities) {
+        this.database
+          .query(
+            `INSERT INTO entities
+              (id, name, created_at, updated_at, revision, archived_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            entity.id,
+            entity.name,
+            entity.createdAt,
+            entity.updatedAt,
+            entity.revision,
+            entity.archivedAt ?? null,
+          );
+      }
+
+      for (const component of snapshot.components) {
+        this.database
+          .query(
+            `INSERT INTO components
+              (entity_id, type_id, schema_version, data_json, active, created_at, updated_at, disabled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            component.entityId,
+            component.typeId,
+            component.schemaVersion,
+            JSON.stringify(component.data),
+            component.active ? 1 : 0,
+            component.createdAt,
+            component.updatedAt,
+            component.disabledAt ?? null,
+          );
+      }
+
+      for (const relation of snapshot.relations) {
+        this.database
+          .query(
+            `INSERT INTO relations
+              (id, from_entity_id, to_entity_id, type, active, created_at, updated_at,
+               created_by, created_operation_id, removed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            relation.id,
+            relation.fromEntityId,
+            relation.toEntityId,
+            relation.type,
+            relation.active ? 1 : 0,
+            relation.createdAt,
+            relation.updatedAt,
+            relation.createdBy,
+            relation.createdOperationId,
+            relation.removedAt ?? null,
+          );
+      }
+
+      const insertEvent = this.database.query(
+        `INSERT INTO events
+          (id, schema_version, operation_id, entity_id, command, before_revision,
+           after_revision, changes_json, actor, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const event of [...snapshot.events, restoreEvent]) {
+        insertEvent.run(
+          event.id,
+          event.schemaVersion,
+          event.operationId,
+          event.entityId,
+          event.command,
+          event.beforeRevision,
+          event.afterRevision,
+          JSON.stringify(event.changes),
+          event.actor,
+          event.at,
+        );
+      }
     });
     transaction.immediate();
   }

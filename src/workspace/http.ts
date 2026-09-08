@@ -12,8 +12,10 @@ const json = (value: unknown, status = 200): Response =>
 interface CommandBody {
   operationId?: string;
   expectedRevision?: number;
+  actor?: string;
   name?: string;
   data?: unknown;
+  backup?: unknown;
   action?: "rename" | "archive" | "restore";
   targetEntityId?: string;
 }
@@ -116,6 +118,38 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
       }
       if (request.method === "GET" && url.pathname === "/api/workspace/estimates") {
         return json(estimateProjection(kernel.list()));
+      }
+      if (request.method === "GET" && url.pathname === "/api/workspace/history") {
+        return json({ events: kernel.history() });
+      }
+      if (request.method === "GET" && url.pathname === "/api/workspace/export") {
+        return json(kernel.exportWorkspace());
+      }
+      if (request.method === "POST" && url.pathname === "/api/workspace/restore") {
+        const input = await body(request);
+        const restored = await WorkspaceKernel.restoreFromExport(
+          workspace,
+          input.backup,
+          {
+            operationId: operationId(input.operationId),
+            ...(input.actor === undefined ? {} : { actor: input.actor }),
+          },
+        );
+        try {
+          const snapshot = restored.exportWorkspace();
+          for (const entity of snapshot.entities) notify(entity.id);
+          return json(snapshot);
+        } finally {
+          restored.close();
+        }
+      }
+      const entityHistoryMatch = url.pathname.match(
+        /^\/api\/workspace\/entities\/([^/]+)\/history$/,
+      );
+      if (entityHistoryMatch && request.method === "GET") {
+        const entityId = decodeURIComponent(entityHistoryMatch[1]!);
+        if (!kernel.get(entityId)) return json({ error: "Not found" }, 404);
+        return json({ events: kernel.history(entityId) });
       }
       const entityMatch = url.pathname.match(/^\/api\/workspace\/entities\/([^/]+)$/);
       if (entityMatch && request.method === "GET") {

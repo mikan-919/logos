@@ -352,6 +352,152 @@ describe("functional workspace kernel", () => {
     expect(restored.archivedAt).toBeUndefined();
     kernel.close();
   });
+
+  test("exports current state and history, then restores it without replaying events", async () => {
+    const source = await workspace();
+    let kernel = await WorkspaceKernel.open(source);
+    let activity = kernel.createEntity("復元する活動", { operationId: "create-activity" });
+    const task = kernel.createEntity("復元する作業", { operationId: "create-task" });
+    activity = kernel.addComponent(
+      activity.id,
+      "body",
+      { operationId: "add-body", expectedRevision: activity.revision },
+      { markdown: "保持する本文" },
+    );
+    activity = kernel.addComponent(
+      activity.id,
+      "progress",
+      { operationId: "add-progress", expectedRevision: activity.revision },
+      { status: "doing" },
+    );
+    const relation = kernel.addReference(activity.id, task.id, {
+      operationId: "add-reference",
+      expectedRevision: activity.revision,
+      actor: "author",
+    });
+    kernel.removeReference(activity.id, task.id, {
+      operationId: "remove-reference",
+      expectedRevision: activity.revision + 1,
+    });
+    let sourceEntity = kernel.get(activity.id);
+    const sourceHistory = kernel.history(activity.id);
+    const sourcePath = kernel.databasePath();
+    kernel.close();
+
+    const database = new Database(sourcePath);
+    const at = new Date().toISOString();
+    database.query(
+      `INSERT INTO components
+        (entity_id, type_id, schema_version, data_json, active, created_at, updated_at, disabled_at)
+       VALUES (?, 'future-feature', 7, ?, 1, ?, ?, NULL)`,
+    ).run(activity.id, JSON.stringify({ retained: true }), at, at);
+    database.close();
+
+    kernel = await WorkspaceKernel.open(source);
+    sourceEntity = kernel.get(activity.id);
+    const snapshot = kernel.exportWorkspace();
+    expect(snapshot.format).toBe("logos.workspace");
+    expect(snapshot.version).toBe(1);
+    expect(snapshot.entities.some((entity) => entity.id === activity.id)).toBe(true);
+    expect(snapshot.events.map((event) => event.operationId)).toEqual(
+      ["create-activity", "create-task", "add-body", "add-progress", "add-reference", "remove-reference"],
+    );
+    expect(snapshot.components).toContainEqual(
+      expect.objectContaining({ typeId: "future-feature", data: { retained: true } }),
+    );
+    expect(snapshot.relations).toContainEqual(expect.objectContaining({
+      id: relation.id,
+      active: false,
+    }));
+    kernel.close();
+
+    const destination = await workspace();
+    const restored = await WorkspaceKernel.restoreFromExport(destination, snapshot, {
+      operationId: "restore-workspace",
+      actor: "backup-user",
+    });
+    expect(restored.get(activity.id)).toEqual(sourceEntity);
+    expect(restored.history(activity.id)).toEqual(sourceHistory);
+    expect(restored.get(activity.id)?.components).toContainEqual(
+      expect.objectContaining({ typeId: "future-feature", data: { retained: true } }),
+    );
+    expect(restored.exportWorkspace().relations).toEqual(snapshot.relations);
+    expect(restored.history().at(-1)).toMatchObject({
+      command: "workspace.restore",
+      entityId: "__workspace__",
+      operationId: "restore-workspace",
+      actor: "backup-user",
+    });
+    restored.close();
+
+    const reopened = await WorkspaceKernel.open(destination);
+    expect(reopened.get(activity.id)).toEqual(sourceEntity);
+    expect(reopened.get(task.id)?.name).toBe("復元する作業");
+    expect(reopened.history(activity.id)).toEqual(sourceHistory);
+    reopened.close();
+  });
+
+  test("rejects an invalid export before writing any restored state", async () => {
+    const destination = await workspace();
+    const invalid = {
+      format: "logos.workspace",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entities: [],
+      components: [],
+      relations: [],
+      events: [{
+        id: "event-1",
+        schemaVersion: 1,
+        operationId: "operation-1",
+        entityId: "missing",
+        command: "entity.rename",
+        beforeRevision: 0,
+        afterRevision: 1,
+        changes: { name: "不正" },
+        actor: "tester",
+        at: new Date().toISOString(),
+      }],
+    };
+    await expect(
+      WorkspaceKernel.restoreFromExport(destination, invalid, { operationId: "restore-invalid" }),
+    ).rejects.toThrow("unknown entity");
+    const kernel = await WorkspaceKernel.open(destination);
+    expect(kernel.list({ includeArchived: true })).toEqual([]);
+    expect(kernel.history()).toEqual([]);
+    kernel.close();
+  });
+
+  test("does not replace a non-empty workspace and treats restore retry as idempotent", async () => {
+    const source = await workspace();
+    const sourceKernel = await WorkspaceKernel.open(source);
+    sourceKernel.createEntity("バックアップ元", { operationId: "source-create" });
+    const snapshot = sourceKernel.exportWorkspace();
+    sourceKernel.close();
+
+    const occupied = await workspace();
+    const occupiedKernel = await WorkspaceKernel.open(occupied);
+    const existing = occupiedKernel.createEntity("既存データ", { operationId: "existing-create" });
+    occupiedKernel.close();
+    await expect(
+      WorkspaceKernel.restoreFromExport(occupied, snapshot, { operationId: "restore-occupied" }),
+    ).rejects.toThrow("empty workspace");
+    const stillOccupied = await WorkspaceKernel.open(occupied);
+    expect(stillOccupied.get(existing.id)?.name).toBe("既存データ");
+    stillOccupied.close();
+
+    const destination = await workspace();
+    const restored = await WorkspaceKernel.restoreFromExport(destination, snapshot, {
+      operationId: "restore-retry",
+    });
+    restored.close();
+    const replayed = await WorkspaceKernel.restoreFromExport(destination, snapshot, {
+      operationId: "restore-retry",
+    });
+    expect(replayed.history().filter((event) => event.command === "workspace.restore")).toHaveLength(1);
+    expect(replayed.list()).toHaveLength(1);
+    replayed.close();
+  });
 });
 
 describe("functional workspace HTTP surface", () => {
@@ -391,6 +537,43 @@ describe("functional workspace HTTP surface", () => {
         },
       ],
     });
+    const history = await app(
+      new Request(`http://logos.local/api/workspace/entities/${entity.id}/history`),
+    );
+    expect(await history.json()).toMatchObject({
+      events: [
+        { command: "entity.create", operationId: "http-create" },
+        { command: "component.add", operationId: "http-add-body" },
+      ],
+    });
+    const exported = await app(new Request("http://logos.local/api/workspace/export"));
+    const backup = await exported.json();
+    expect(backup).toMatchObject({ format: "logos.workspace", version: 1 });
+    const allHistory = await app(new Request("http://logos.local/api/workspace/history"));
+    const allHistoryValue = await allHistory.json() as { events: Array<{ operationId: string }> };
+    expect(allHistoryValue.events[0]).toMatchObject({ operationId: "http-create" });
+
+    const destination = await workspace();
+    const destinationApp = createWorkspaceHttpApp(destination);
+    const restore = await destinationApp(new Request("http://logos.local/api/workspace/restore", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ backup, operationId: "http-restore", actor: "operator" }),
+    }));
+    expect(restore.status).toBe(200);
+    expect(await restore.json()).toMatchObject({
+      format: "logos.workspace",
+      entities: [{ id: entity.id }],
+      events: [
+        { operationId: "http-create" },
+        { operationId: "http-add-body" },
+        { operationId: "http-restore", command: "workspace.restore", actor: "operator" },
+      ],
+    });
+    const restoredEntity = await destinationApp(
+      new Request(`http://logos.local/api/workspace/entities/${entity.id}`),
+    );
+    expect(await restoredEntity.json()).toMatchObject({ id: entity.id, revision: 1 });
   });
 
   test("returns the current entity with a conflict response", async () => {
@@ -507,6 +690,9 @@ describe("functional workspace HTTP surface", () => {
     expect(html).toContain("見積時間一覧");
     expect(html).toContain("保存した値を復元");
     expect(html).toContain("未対応のComponent");
+    expect(html).toContain("履歴");
+    expect(html).toContain("エクスポート");
+    expect(html).toContain("復元ファイル");
     const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
     expect(script).toBeDefined();
     expect(() => new Function(script!)).not.toThrow();

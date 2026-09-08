@@ -45,6 +45,14 @@ export const workspacePage = `<!doctype html>
       <button id="nav-calendar">週カレンダー</button>
       <button id="nav-estimates">見積時間一覧</button>
     </nav>
+    <div class="actions">
+      <button id="export-button" type="button">エクスポート</button>
+    </div>
+    <form id="restore-form" class="row">
+      <label>復元ファイル<input id="restore-file" type="file" accept="application/json"></label>
+      <button>復元</button>
+    </form>
+    <p class="muted">復元は空のワークスペースで実行します。現在のデータは置き換えません。</p>
   </header>
 
   <section id="list-view">
@@ -128,6 +136,10 @@ export const workspacePage = `<!doctype html>
       <p class="muted">この実装では編集できません。データは保持されます。</p>
       <div id="unknown-component-list"></div>
     </article>
+    <article>
+      <h3>履歴</h3>
+      <ol id="history"></ol>
+    </article>
   </section>
 
   <section id="estimate-view" hidden>
@@ -156,6 +168,11 @@ export const workspacePage = `<!doctype html>
   const featureLabel = { body: '本文', progress: '進捗', schedule: '実施予定', estimate: '見積時間' };
   const addFeatureLabel = { body: '本文機能を追加', progress: '進捗を管理', schedule: '実施予定を追加', estimate: '見積時間を追加' };
   const progressLabel = { todo: '未着手', doing: '進行中', done: '完了' };
+  const commandLabel = {
+    'entity.create': '対象を作成', 'entity.rename': '名前を変更', 'entity.archive': 'アーカイブ', 'entity.restore': 'アーカイブを復元',
+    'component.add': '機能を追加', 'component.disable': '機能を解除', 'component.restore': '機能を復元', 'component.update': '機能を更新',
+    'relation.add': '参照を追加', 'relation.remove': '参照を解除', 'workspace.restore': 'ワークスペースを復元',
+  };
 
   async function api(path, options) {
     const response = await fetch(path, options);
@@ -212,7 +229,7 @@ export const workspacePage = `<!doctype html>
     currentView = 'detail';
     setView();
     renderDetail(false);
-    await loadReferences();
+    await Promise.all([loadReferences(), loadHistory()]);
   }
   function setView() {
     byId('list-view').hidden = currentView !== 'list';
@@ -312,6 +329,22 @@ export const workspacePage = `<!doctype html>
     }
     if (!value.outgoing.length && !value.incoming.length) container.textContent = '参照はありません。';
   }
+  async function loadHistory() {
+    if (!selected) return;
+    const value = await api('/api/workspace/entities/' + encodeURIComponent(selected.id) + '/history');
+    const list = byId('history');
+    list.replaceChildren();
+    for (const event of value.events) {
+      const item = document.createElement('li');
+      const summary = document.createElement('strong');
+      summary.textContent = (commandLabel[event.command] || event.command) + ' / ' + event.actor + ' / ' + new Date(event.at).toLocaleString();
+      const detail = document.createElement('pre');
+      detail.textContent = JSON.stringify({ operationId: event.operationId, revision: event.beforeRevision + ' → ' + event.afterRevision, changes: event.changes }, null, 2);
+      item.append(summary, detail);
+      list.append(item);
+    }
+    if (!value.events.length) list.textContent = '履歴はありません。';
+  }
   async function mutateEntity(action, extra = {}) {
     selected = await api('/api/workspace/entities/' + selected.id, {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: commandBody({ action, ...extra }),
@@ -356,7 +389,7 @@ export const workspacePage = `<!doctype html>
     detailDirty = false;
     await loadAll();
     renderDetail(false);
-    await loadReferences();
+    await Promise.all([loadReferences(), loadHistory()]);
     byId('status').textContent = '保存しました';
   }
   function handleError(error) {
@@ -454,11 +487,41 @@ export const workspacePage = `<!doctype html>
     }
     if (!value.entries.length) list.textContent = '見積時間を持つ対象はありません。';
   }
+  function downloadExport(snapshot) {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
+    link.download = 'logos-workspace-export.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+  async function restoreWorkspace() {
+    const file = byId('restore-file').files[0];
+    if (!file) throw new Error('復元ファイルを選択してください');
+    if (!confirm('空のワークスペースへ復元します。続けますか？')) return;
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      throw new Error('復元ファイルはJSONである必要があります');
+    }
+    await api('/api/workspace/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ backup, operationId: operationId() }),
+    });
+    selected = undefined;
+    detailDirty = false;
+    currentView = 'list';
+    setView();
+    await Promise.all([loadAll(), loadList()]);
+    byId('restore-file').value = '';
+    byId('status').textContent = '復元しました';
+  }
 
   byId('nav-list').onclick = async () => { currentView = 'list'; setView(); await loadList(); };
   byId('back-list').onclick = byId('nav-list').onclick;
   byId('nav-calendar').onclick = async () => { currentView = 'calendar'; setView(); await loadCalendar(); };
   byId('nav-estimates').onclick = async () => { currentView = 'estimates'; setView(); await loadEstimates(); };
+  byId('export-button').onclick = async () => { try { downloadExport(await api('/api/workspace/export')); byId('status').textContent = 'エクスポートしました'; } catch (error) { handleError(error); } };
+  byId('restore-form').onsubmit = (event) => { event.preventDefault(); restoreWorkspace().catch(handleError); };
   byId('create-form').onsubmit = async (event) => {
     event.preventDefault();
     try {
@@ -508,7 +571,7 @@ export const workspacePage = `<!doctype html>
           showLatest(selected);
           byId('status').textContent = '別の画面で更新されました。入力は残しています。';
         }
-        await loadReferences();
+        await Promise.all([loadReferences(), loadHistory()]);
       }
     } catch (error) { handleError(error); }
   };

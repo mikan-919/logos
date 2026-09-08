@@ -1,5 +1,7 @@
 export type ProgressStatus = "todo" | "doing" | "done";
 
+export const WORKSPACE_EVENT_ENTITY_ID = "__workspace__" as const;
+
 export interface BodyData {
   markdown: string;
 }
@@ -79,7 +81,8 @@ export type WorkspaceCommandName =
   | "component.restore"
   | "component.update"
   | "relation.add"
-  | "relation.remove";
+  | "relation.remove"
+  | "workspace.restore";
 
 export interface WorkspaceEvent {
   id: string;
@@ -92,6 +95,16 @@ export interface WorkspaceEvent {
   changes: Record<string, unknown>;
   actor: string;
   at: string;
+}
+
+export interface WorkspaceExport {
+  format: "logos.workspace";
+  version: 1;
+  exportedAt: string;
+  entities: WorkspaceEntity[];
+  components: WorkspaceComponent[];
+  relations: WorkspaceRelation[];
+  events: WorkspaceEvent[];
 }
 
 export interface CommandMetadata {

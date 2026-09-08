@@ -1,6 +1,8 @@
 import { RevisionConflictError, WorkspaceValidationError } from "./errors";
+import { validateWorkspaceExport } from "./backup";
 import { ComponentRegistry, workspaceComponentRegistry } from "./features";
 import { WorkspaceStore } from "./store";
+import { WORKSPACE_EVENT_ENTITY_ID } from "./types";
 import type {
   CommandMetadata,
   CalendarEntry,
@@ -12,6 +14,7 @@ import type {
   WorkspaceEntity,
   WorkspaceEntityView,
   WorkspaceEvent,
+  WorkspaceExport,
   WorkspaceReferences,
   WorkspaceRelation,
 } from "./types";
@@ -20,6 +23,11 @@ const identifier = (prefix: string): string => `${prefix}_${crypto.randomUUID()}
 const timestamp = (): string => new Date().toISOString();
 
 export interface CreateEntityMetadata {
+  operationId: string;
+  actor?: string;
+}
+
+export interface RestoreWorkspaceMetadata {
   operationId: string;
   actor?: string;
 }
@@ -41,6 +49,58 @@ export class WorkspaceKernel {
     return new WorkspaceKernel(await WorkspaceStore.open(workspace), componentRegistry);
   }
 
+  static async restoreFromExport(
+    workspace: string,
+    value: unknown,
+    metadata: RestoreWorkspaceMetadata,
+    componentRegistry: ComponentRegistry = workspaceComponentRegistry,
+  ): Promise<WorkspaceKernel> {
+    if (!metadata.operationId.trim()) throw new WorkspaceValidationError("operationId is required");
+    const snapshot = validateWorkspaceExport(value, componentRegistry);
+    const store = await WorkspaceStore.open(workspace);
+    try {
+      const previous = store.eventByOperation(metadata.operationId);
+      if (previous) {
+        if (previous.command !== "workspace.restore") {
+          throw new WorkspaceValidationError(
+            `operationId ${metadata.operationId} was already used for ${previous.command}`,
+          );
+        }
+        return new WorkspaceKernel(store, componentRegistry);
+      }
+      if (snapshot.events.some((event) => event.operationId === metadata.operationId)) {
+        throw new WorkspaceValidationError(
+          `operationId ${metadata.operationId} is already present in the workspace export`,
+        );
+      }
+      const at = timestamp();
+      store.restore(snapshot, {
+        id: identifier("wevt"),
+        schemaVersion: 1,
+        operationId: metadata.operationId,
+        entityId: WORKSPACE_EVENT_ENTITY_ID,
+        command: "workspace.restore",
+        beforeRevision: -1,
+        afterRevision: -1,
+        changes: {
+          sourceFormat: snapshot.format,
+          sourceVersion: snapshot.version,
+          sourceExportedAt: snapshot.exportedAt,
+          entityCount: snapshot.entities.length,
+          componentCount: snapshot.components.length,
+          relationCount: snapshot.relations.length,
+          eventCount: snapshot.events.length,
+        },
+        actor: actor(metadata),
+        at,
+      });
+      return new WorkspaceKernel(store, componentRegistry);
+    } catch (error) {
+      store.close();
+      throw error;
+    }
+  }
+
   close(): void {
     this.store.close();
   }
@@ -51,6 +111,10 @@ export class WorkspaceKernel {
 
   componentTypeIds(): string[] {
     return this.componentRegistry.typeIds();
+  }
+
+  exportWorkspace(): WorkspaceExport {
+    return this.store.exportWorkspace(timestamp());
   }
 
   get(entityId: string): WorkspaceEntityView | undefined {
