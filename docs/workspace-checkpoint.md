@@ -14,7 +14,7 @@
 
 ## 現在位置
 
-工程0〜3を実装済み。次は工程4「日常利用の準備」である。
+工程0〜4を実装済み。次は工程5「利用観察」である。
 
 - 専用保存先: `.logos-workspace/workspace.sqlite`
 - 旧MVP保存先: `.logos/events.jsonl`。自動移行しない。
