@@ -62,13 +62,23 @@
 - 復元操作の履歴記録と`operationId`再送処理
 - 詳細画面の履歴表示、エクスポート、空のワークスペースへの復元確認
 
+### 工程4のサンプル投入
+
+- `workspace.sample` Commandで勉強会と記事のサンプルを一括投入
+- Body、Progress、Scheduleの検証済み状態と、Entityごとの作成・機能追加履歴を保存
+- ルート投入イベントを含む現在状態・履歴の一括SQLiteトランザクション
+- 空のワークスペースだけを対象にし、非空時は既存状態を変更しない
+- 同じ`operationId`の再送を冪等に処理
+- 画面の「サンプルデータを読み込む」ボタンと`POST /api/workspace/sample`
+
 ## 検証済み基準
 
 - `bun run typecheck`成功
 - `bun test`成功
-- 現在の試験数: 44
+- 現在の試験数: 49
 - `createWorkspaceHttpApp`で履歴・エクスポート・復元API応答を確認
 - 履歴、エクスポート、復元のAPIと試験を追加。運用手順は[workspace-backup.md](workspace-backup.md)
+- サンプル投入の成功、再起動・履歴、非空拒否、再送、原子性、HTTP/UI入口を試験
 - 実サーバーはポート使用中のため起動確認を保留
 - Jujutsuで保存したコミット: `00499169 feat: add workspace history backup and restore`
 
@@ -81,7 +91,7 @@
 1. ~~履歴Queryと対象詳細の履歴表示を追加する。イベントの削除や編集は許可しない。~~
 2. ~~バージョン付きエクスポート形式を定義し、未知Componentを保持する。~~
 3. ~~一時ディレクトリへ復元して、Entity ID、Component状態、Relation、履歴を照合する。~~
-4. UIへ復元確認を追加した。エラー表示は既存。サンプルデータは未対応。
+4. UIへ復元確認とサンプル投入を追加した。エラー表示は既存。
 5. 実データを使う前に[バックアップと復元の手順](workspace-backup.md)を確認し、実サーバーで操作する。
 
 ## 守る境界

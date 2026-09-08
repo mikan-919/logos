@@ -73,6 +73,81 @@ describe("functional workspace kernel", () => {
     reopened.close();
   });
 
+  test("loads the sample workflow with entity history and keeps it after restart", async () => {
+    const root = await workspace();
+    let kernel = await WorkspaceKernel.open(root);
+    const loaded = kernel.seedSample({ operationId: "sample-load", actor: "demo" });
+    expect(loaded.replayed).toBe(false);
+    expect(loaded.entities.map((entity) => entity.name)).toEqual([
+      "勉強会を開催する",
+      "記事を書く",
+    ]);
+    expect(loaded.entities.every((entity) => entity.components.length === 3)).toBe(true);
+    expect(loaded.entities[0]?.components).toEqual(expect.arrayContaining([
+      expect.objectContaining({ typeId: "body", active: true }),
+      expect.objectContaining({ typeId: "progress", data: { status: "done" } }),
+      expect.objectContaining({ typeId: "schedule", active: true }),
+    ]));
+    expect(kernel.history(loaded.entities[0]!.id).map((event) => event.command)).toEqual([
+      "entity.create",
+      "component.add",
+      "component.add",
+      "component.add",
+    ]);
+    expect(kernel.history().at(-1)).toMatchObject({
+      operationId: "sample-load",
+      command: "workspace.sample",
+      actor: "demo",
+      entityId: "__workspace__",
+    });
+    const firstState = loaded.entities;
+    kernel.close();
+
+    kernel = await WorkspaceKernel.open(root);
+    const replayed = kernel.seedSample({ operationId: "sample-load", actor: "another-user" });
+    expect(replayed.replayed).toBe(true);
+    expect(replayed.entities).toEqual(firstState);
+    expect(kernel.list()).toHaveLength(2);
+    expect(kernel.history().filter((event) => event.command === "workspace.sample")).toHaveLength(1);
+    kernel.close();
+  });
+
+  test("does not load samples into a non-empty workspace", async () => {
+    const kernel = await WorkspaceKernel.open(await workspace());
+    const existing = kernel.createEntity("既存データ", { operationId: "existing-create" });
+    expect(() => kernel.seedSample({ operationId: "sample-occupied" })).toThrow(
+      "empty workspace",
+    );
+    expect(kernel.list({ includeArchived: true })).toEqual([existing]);
+    expect(kernel.history()).toHaveLength(1);
+    kernel.close();
+  });
+
+  test("rolls back every sample write when its history event fails", async () => {
+    const root = await workspace();
+    const first = await WorkspaceKernel.open(root);
+    const path = first.databasePath();
+    first.close();
+    const database = new Database(path);
+    database.exec(`
+      CREATE TRIGGER reject_sample_event
+      BEFORE INSERT ON events
+      WHEN NEW.operation_id = 'sample-failure'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced sample failure');
+      END;
+    `);
+    database.close();
+
+    const kernel = await WorkspaceKernel.open(root);
+    expect(() => kernel.seedSample({ operationId: "sample-failure" })).toThrow(
+      "forced sample failure",
+    );
+    expect(kernel.list({ includeArchived: true })).toEqual([]);
+    expect(kernel.history()).toEqual([]);
+    kernel.close();
+  });
+
   test("rejects invalid schedule without changing state or history", async () => {
     const kernel = await WorkspaceKernel.open(await workspace());
     const entity = kernel.createEntity("記事を書く", { operationId: "create-article" });
@@ -576,6 +651,55 @@ describe("functional workspace HTTP surface", () => {
     expect(await restoredEntity.json()).toMatchObject({ id: entity.id, revision: 1 });
   });
 
+  test("loads and retries sample data through the HTTP command boundary", async () => {
+    const root = await workspace();
+    const app = createWorkspaceHttpApp(root);
+    const first = await app(new Request("http://logos.local/api/workspace/sample", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operationId: "http-sample", actor: "operator" }),
+    }));
+    expect(first.status).toBe(201);
+    const firstValue = await first.json() as {
+      entities: Array<{ id: string }>;
+      replayed: boolean;
+    };
+    expect(firstValue.replayed).toBe(false);
+    expect(firstValue.entities).toHaveLength(2);
+
+    const retry = await app(new Request("http://logos.local/api/workspace/sample", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operationId: "http-sample" }),
+    }));
+    expect(retry.status).toBe(200);
+    const retryValue = await retry.json() as {
+      entities: Array<{ id: string }>;
+      replayed: boolean;
+    };
+    expect(retryValue).toMatchObject({ replayed: true, entities: firstValue.entities });
+
+    const exported = await app(new Request("http://logos.local/api/workspace/export"));
+    const snapshot = await exported.json();
+    const restoreSnapshot = structuredClone(snapshot);
+    expect(snapshot).toMatchObject({
+      entities: expect.arrayContaining([
+        expect.objectContaining({ name: "勉強会を開催する" }),
+        expect.objectContaining({ name: "記事を書く" }),
+      ]),
+      events: expect.arrayContaining([
+        expect.objectContaining({ operationId: "http-sample", command: "workspace.sample" }),
+      ]),
+    });
+    const destination = await workspace();
+    const restored = await WorkspaceKernel.restoreFromExport(destination, restoreSnapshot, {
+      operationId: "http-sample-restore",
+    });
+    expect(restored.list()).toHaveLength(2);
+    expect(restored.history().some((event) => event.command === "workspace.sample")).toBe(true);
+    restored.close();
+  });
+
   test("returns the current entity with a conflict response", async () => {
     const root = await workspace();
     const app = createWorkspaceHttpApp(root);
@@ -693,6 +817,8 @@ describe("functional workspace HTTP surface", () => {
     expect(html).toContain("履歴");
     expect(html).toContain("エクスポート");
     expect(html).toContain("復元ファイル");
+    expect(html).toContain("サンプルデータを読み込む");
+    expect(html).toContain("/api/workspace/sample");
     const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
     expect(script).toBeDefined();
     expect(() => new Function(script!)).not.toThrow();

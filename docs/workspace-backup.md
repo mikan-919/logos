@@ -25,6 +25,26 @@
 
 履歴は読み取り専用である。詳細画面では操作、実行者、時刻、`operationId`、revision、変更内容を表示する。
 
+## サンプルデータ
+
+空のワークスペースで画面の「サンプルデータを読み込む」を押すと、共通Command `workspace.sample`を通じて次の2 Entityを作る。
+
+- `勉強会を開催する`: Body、完了したProgress、単発のSchedule
+- `記事を書く`: Body、進行中のProgress、単発のSchedule
+
+各Entityには通常の`entity.create`と`component.add`の履歴が付き、ワークスペース全体には投入を表す`workspace.sample`イベントが追加される。作成、Component検証、現在状態、履歴は一つのSQLiteトランザクションで保存されるため、途中で失敗した場合に一部だけ残らない。投入時刻を基準に翌日以降の予定を作るので、現在の週カレンダーから確認できる。
+
+HTTPから実行する場合は次の形式にする。
+
+```json
+{
+  "operationId": "sample-2026-09-08",
+  "actor": "local-user"
+}
+```
+
+`POST /api/workspace/sample`は空のワークスペースだけを受け付け、既存Entity、アーカイブ済みEntity、履歴のあるワークスペースを置き換えない。同じ`operationId`の再送は既存のEntityと履歴を返し、別の操作で使った`operationId`は拒否する。
+
 ## 復元
 
 復元先のワークスペースを空のディレクトリで起動し、画面の「復元」からJSONファイルを指定する。HTTPでは次の形式で送信する。

@@ -82,6 +82,7 @@ export type WorkspaceCommandName =
   | "component.update"
   | "relation.add"
   | "relation.remove"
+  | "workspace.sample"
   | "workspace.restore";
 
 export interface WorkspaceEvent {
@@ -105,6 +106,12 @@ export interface WorkspaceExport {
   components: WorkspaceComponent[];
   relations: WorkspaceRelation[];
   events: WorkspaceEvent[];
+}
+
+export interface WorkspaceSampleResult {
+  operationId: string;
+  replayed: boolean;
+  entities: WorkspaceEntityView[];
 }
 
 export interface CommandMetadata {

@@ -1,6 +1,7 @@
 import { RevisionConflictError, WorkspaceValidationError } from "./errors";
 import { validateWorkspaceExport } from "./backup";
 import { ComponentRegistry, workspaceComponentRegistry } from "./features";
+import { buildWorkspaceSample } from "./sample";
 import { WorkspaceStore } from "./store";
 import { WORKSPACE_EVENT_ENTITY_ID } from "./types";
 import type {
@@ -17,6 +18,7 @@ import type {
   WorkspaceExport,
   WorkspaceReferences,
   WorkspaceRelation,
+  WorkspaceSampleResult,
 } from "./types";
 
 const identifier = (prefix: string): string => `${prefix}_${crypto.randomUUID()}`;
@@ -28,6 +30,11 @@ export interface CreateEntityMetadata {
 }
 
 export interface RestoreWorkspaceMetadata {
+  operationId: string;
+  actor?: string;
+}
+
+export interface SampleWorkspaceMetadata {
   operationId: string;
   actor?: string;
 }
@@ -115,6 +122,29 @@ export class WorkspaceKernel {
 
   exportWorkspace(): WorkspaceExport {
     return this.store.exportWorkspace(timestamp());
+  }
+
+  seedSample(metadata: SampleWorkspaceMetadata): WorkspaceSampleResult {
+    if (!metadata.operationId.trim()) throw new WorkspaceValidationError("operationId is required");
+    const previous = this.store.eventByOperation(metadata.operationId);
+    if (previous) {
+      if (previous.command !== "workspace.sample") {
+        throw new WorkspaceValidationError(
+          `operationId ${metadata.operationId} was already used for ${previous.command}`,
+        );
+      }
+      return this.sampleResult(previous, true);
+    }
+    if (!this.store.isEmpty()) {
+      throw new WorkspaceValidationError("Sample data requires an empty workspace");
+    }
+    const plan = buildWorkspaceSample(metadata.operationId, actor(metadata), this.componentRegistry);
+    this.store.saveSample(plan.entities, plan.components, plan.relations, plan.events);
+    return {
+      operationId: metadata.operationId,
+      replayed: false,
+      entities: plan.entityIds.map((entityId) => this.requiredEntity(entityId)),
+    };
   }
 
   get(entityId: string): WorkspaceEntityView | undefined {
@@ -526,6 +556,18 @@ export class WorkspaceKernel {
       );
     }
     return event;
+  }
+
+  private sampleResult(event: WorkspaceEvent, replayed: boolean): WorkspaceSampleResult {
+    const entityIds = event.changes.entityIds;
+    if (!Array.isArray(entityIds) || !entityIds.every((entityId) => typeof entityId === "string")) {
+      throw new WorkspaceValidationError(`Sample event is missing entity IDs: ${event.id}`);
+    }
+    return {
+      operationId: event.operationId,
+      replayed,
+      entities: entityIds.map((entityId) => this.requiredEntity(entityId)),
+    };
   }
 
   private requiredEntity(entityId: string): WorkspaceEntityView {

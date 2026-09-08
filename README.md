@@ -26,6 +26,8 @@ bun run workspace serve --port 4318
 
 Open `http://localhost:4318` to use the entity list, composed detail view, and week calendar. Body, Progress, and Schedule components can be added, updated, disabled, and restored. Entity references and cross-view refresh use the same command boundary. Current state and command history are committed together in `.logos-workspace/workspace.sqlite`; the prototype does not read or migrate `.logos/events.jsonl`.
 
+On a new empty workspace, select **サンプルデータを読み込む** to load a small, history-backed walkthrough. It creates `勉強会を開催する` and `記事を書く` with Body, Progress, and Schedule components, then opens the first detail view so the shared ID, calendar data, and history can be checked. Sample loading is refused when the workspace is not empty and retrying the same operation is idempotent. The same operation is also available as `POST /api/workspace/sample` with a required `operationId`.
+
 The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled-component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md).
 
 The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.

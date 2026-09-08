@@ -102,6 +102,15 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
           }),
         });
       }
+      if (request.method === "POST" && url.pathname === "/api/workspace/sample") {
+        const input = await body(request);
+        const result = kernel.seedSample({
+          operationId: operationId(input.operationId),
+          ...(input.actor === undefined ? {} : { actor: input.actor }),
+        });
+        for (const entity of result.entities) notify(entity.id);
+        return json(result, result.replayed ? 200 : 201);
+      }
       if (request.method === "POST" && url.pathname === "/api/workspace/entities") {
         const input = await body(request);
         const entity = kernel.createEntity(input.name ?? "", { operationId: operationId(input.operationId) });

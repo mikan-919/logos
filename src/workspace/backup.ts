@@ -24,6 +24,7 @@ const commands: readonly WorkspaceCommandName[] = [
   "component.update",
   "relation.add",
   "relation.remove",
+  "workspace.sample",
   "workspace.restore",
 ];
 
@@ -168,7 +169,7 @@ function parseEvent(value: unknown, index: number, entityIds: Set<string>): Work
   if (typeof command !== "string" || !commands.includes(command as WorkspaceCommandName)) {
     throw new WorkspaceValidationError(`events[${index}].command is not supported`);
   }
-  if (command === "workspace.restore") {
+  if (command === "workspace.sample" || command === "workspace.restore") {
     if (entityId !== WORKSPACE_EVENT_ENTITY_ID) {
       throw new WorkspaceValidationError(`events[${index}] has an invalid workspace entity ID`);
     }

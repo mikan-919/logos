@@ -46,8 +46,10 @@ export const workspacePage = `<!doctype html>
       <button id="nav-estimates">見積時間一覧</button>
     </nav>
     <div class="actions">
+      <button id="sample-button" type="button">サンプルデータを読み込む</button>
       <button id="export-button" type="button">エクスポート</button>
     </div>
+    <p class="muted">サンプルは空のワークスペースに一度だけ読み込めます。勉強会と記事の本文、進捗、実施予定、履歴を確認できます。</p>
     <form id="restore-form" class="row">
       <label>復元ファイル<input id="restore-file" type="file" accept="application/json"></label>
       <button>復元</button>
@@ -171,7 +173,7 @@ export const workspacePage = `<!doctype html>
   const commandLabel = {
     'entity.create': '対象を作成', 'entity.rename': '名前を変更', 'entity.archive': 'アーカイブ', 'entity.restore': 'アーカイブを復元',
     'component.add': '機能を追加', 'component.disable': '機能を解除', 'component.restore': '機能を復元', 'component.update': '機能を更新',
-    'relation.add': '参照を追加', 'relation.remove': '参照を解除', 'workspace.restore': 'ワークスペースを復元',
+    'relation.add': '参照を追加', 'relation.remove': '参照を解除', 'workspace.sample': 'サンプルを投入', 'workspace.restore': 'ワークスペースを復元',
   };
 
   async function api(path, options) {
@@ -190,6 +192,7 @@ export const workspacePage = `<!doctype html>
   async function loadAll() {
     const value = await api('/api/workspace/entities?includeArchived=true');
     allEntities = value.entities;
+    byId('sample-button').disabled = allEntities.length !== 0;
     if (selected) selected = allEntities.find((item) => item.id === selected.id) || selected;
   }
   async function loadList() {
@@ -516,11 +519,27 @@ export const workspacePage = `<!doctype html>
     byId('status').textContent = '復元しました';
   }
 
+  async function loadSample() {
+    if (allEntities.length) {
+      byId('status').textContent = 'サンプルは空のワークスペースでのみ読み込めます';
+      return;
+    }
+    if (!confirm('空のワークスペースにサンプルを読み込みます。続けますか？')) return;
+    const value = await api('/api/workspace/sample', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ operationId: operationId() }),
+    });
+    await loadAll();
+    await loadList();
+    if (value.entities?.[0]?.id) await openDetail(value.entities[0].id);
+    byId('status').textContent = value.replayed ? 'サンプルを再表示しました' : 'サンプルを読み込みました';
+  }
+
   byId('nav-list').onclick = async () => { currentView = 'list'; setView(); await loadList(); };
   byId('back-list').onclick = byId('nav-list').onclick;
   byId('nav-calendar').onclick = async () => { currentView = 'calendar'; setView(); await loadCalendar(); };
   byId('nav-estimates').onclick = async () => { currentView = 'estimates'; setView(); await loadEstimates(); };
   byId('export-button').onclick = async () => { try { downloadExport(await api('/api/workspace/export')); byId('status').textContent = 'エクスポートしました'; } catch (error) { handleError(error); } };
+  byId('sample-button').onclick = () => { loadSample().catch(handleError); };
   byId('restore-form').onsubmit = (event) => { event.preventDefault(); restoreWorkspace().catch(handleError); };
   byId('create-form').onsubmit = async (event) => {
     event.preventDefault();

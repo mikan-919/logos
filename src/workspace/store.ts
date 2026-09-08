@@ -431,6 +431,99 @@ export class WorkspaceStore {
     transaction.immediate();
   }
 
+  saveSample(
+    entities: WorkspaceEntity[],
+    components: WorkspaceComponent[],
+    relations: WorkspaceRelation[],
+    events: WorkspaceEvent[],
+  ): void {
+    const transaction = this.database.transaction(() => {
+      if (!this.isEmpty()) {
+        throw new WorkspaceValidationError("Sample data requires an empty workspace");
+      }
+
+      for (const entity of entities) {
+        this.database
+          .query(
+            `INSERT INTO entities
+              (id, name, created_at, updated_at, revision, archived_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            entity.id,
+            entity.name,
+            entity.createdAt,
+            entity.updatedAt,
+            entity.revision,
+            entity.archivedAt ?? null,
+          );
+      }
+
+      for (const component of components) {
+        this.database
+          .query(
+            `INSERT INTO components
+              (entity_id, type_id, schema_version, data_json, active, created_at, updated_at, disabled_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            component.entityId,
+            component.typeId,
+            component.schemaVersion,
+            JSON.stringify(component.data),
+            component.active ? 1 : 0,
+            component.createdAt,
+            component.updatedAt,
+            component.disabledAt ?? null,
+          );
+      }
+
+      for (const relation of relations) {
+        this.database
+          .query(
+            `INSERT INTO relations
+              (id, from_entity_id, to_entity_id, type, active, created_at, updated_at,
+               created_by, created_operation_id, removed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            relation.id,
+            relation.fromEntityId,
+            relation.toEntityId,
+            relation.type,
+            relation.active ? 1 : 0,
+            relation.createdAt,
+            relation.updatedAt,
+            relation.createdBy,
+            relation.createdOperationId,
+            relation.removedAt ?? null,
+          );
+      }
+
+      const insertEvent = this.database.query(
+        `INSERT INTO events
+          (id, schema_version, operation_id, entity_id, command, before_revision,
+           after_revision, changes_json, actor, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const event of events) {
+        insertEvent.run(
+          event.id,
+          event.schemaVersion,
+          event.operationId,
+          event.entityId,
+          event.command,
+          event.beforeRevision,
+          event.afterRevision,
+          JSON.stringify(event.changes),
+          event.actor,
+          event.at,
+        );
+      }
+    });
+    transaction.immediate();
+  }
+
   restore(snapshot: WorkspaceExport, restoreEvent: WorkspaceEvent): void {
     const transaction = this.database.transaction(() => {
       if (!this.isEmpty()) {
