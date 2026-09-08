@@ -14,11 +14,12 @@
 
 ## 現在位置
 
-工程0〜4を実装済み。次は工程5「利用観察」である。
+工程0〜4を実装済み。工程5「利用観察」は未実施のまま、読み取り専用MCP入口の拡張へ進んだ。
 
 - 専用保存先: `.logos-workspace/workspace.sqlite`
 - 旧MVP保存先: `.logos/events.jsonl`。自動移行しない。
 - 起動: `bun run workspace serve --port 4318`
+- MCP起動: `bun run workspace mcp`
 - 計画本文: [implementation-plan.md](implementation-plan.md)
 - モデル契約: [workspace-model.md](workspace-model.md)
 - Component登録方法: [workspace-features.md](workspace-features.md)
@@ -71,11 +72,18 @@
 - 同じ`operationId`の再送を冪等に処理
 - 画面の「サンプルデータを読み込む」ボタンと`POST /api/workspace/sample`
 
+### 工程5を飛ばした後の最初の拡張
+
+- 読み取り専用MCP入口
+- 最大50 Entityの一覧・絞り込み
+- 単一Entity、Component、参照の取得
+- MCP専用状態と書き込み操作を持たない境界
+
 ## 検証済み基準
 
 - `bun run typecheck`成功
 - `bun test`成功
-- 現在の試験数: 50
+- 現在の試験数: 54
 - `createWorkspaceHttpApp`で履歴・エクスポート・復元API応答を確認
 - 履歴、エクスポート、復元のAPIと試験を追加。運用手順は[workspace-backup.md](workspace-backup.md)
 - サンプル投入の成功、再起動・履歴、非空拒否、再送、原子性、HTTP/UI入口を試験
@@ -92,7 +100,7 @@
 
 ## 次の作業
 
-工程4のバックアップ・復元確認は完了した。工程5は利用観察である。
+工程4のバックアップ・復元確認は完了した。工程5の利用観察は実施できないため、2026-09-08の判断で未実施のまま次の拡張へ進んだ。利用価値は未検証である。
 
 推奨順序:
 
@@ -104,7 +112,7 @@
 
 6. [利用観察の手順と記録様式](workspace-usage-observation.md)に従い、実データの反復利用と既存手段との差を記録する。
 
-工程5では実データの反復利用と既存手段との差を記録する。工程5の完了条件を満たすまで、新しい機能の追加や用途の拡張は行わない。
+同じEntity・Component・Queryを読むMCP入口を追加した。次は実際のMCPクライアントから一覧と詳細を読み、必要な情報が不足する場合だけ次の読み取りQueryを選ぶ。書き込み、新しい対象モデル、MCP専用状態は追加しない。
 
 ## 守る境界
 

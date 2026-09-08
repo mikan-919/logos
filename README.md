@@ -30,6 +30,14 @@ On a new empty workspace, select **サンプルデータを読み込む** to loa
 
 The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled-component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md).
 
+Coding agents can read the same workspace state through a separate MCP-compatible stdio server:
+
+```bash
+bun run workspace mcp
+```
+
+It exposes `logos_workspace_entities_list` and `logos_workspace_entity_get`. Both tools are read-only. The list is limited to at most 50 entities per call; the detail tool returns one Entity with its Components and references. Workspace writes remain behind the existing HTTP and shared Command boundary.
+
 The stage-five usage observation procedure and record template are in [docs/workspace-usage-observation.md](docs/workspace-usage-observation.md). It records actual use and comparison with existing tools without changing the workspace data model.
 
 The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.
