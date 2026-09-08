@@ -30,6 +30,8 @@ On a new empty workspace, select **サンプルデータを読み込む** to loa
 
 The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled-component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md).
 
+The stage-five usage observation procedure and record template are in [docs/workspace-usage-observation.md](docs/workspace-usage-observation.md). It records actual use and comparison with existing tools without changing the workspace data model.
+
 The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.
 
 ## Five-minute walkthrough
