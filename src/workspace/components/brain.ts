@@ -1,6 +1,6 @@
 import { WorkspaceValidationError } from "../errors";
 import type { FeatureDefinition } from "../features";
-import type { EventData, NameData, NoteData, TagData, TaskData } from "../types";
+import type { EventData, NameData, NoteData, TagData, TaskData, TaskPriority } from "../types";
 import { scheduleDefinition } from "./schedule";
 import { componentRecord } from "./shared";
 
@@ -17,7 +17,15 @@ function validateTask(value: unknown): TaskData {
   if (data.status !== "todo" && data.status !== "doing" && data.status !== "done") {
     throw new WorkspaceValidationError("task.status must be todo, doing, or done");
   }
-  return { status: data.status };
+  const due = optionalDate(data.due, "task.due");
+  const priority = optionalPriority(data.priority);
+  const description = optionalText(data.description, "task.description");
+  return {
+    status: data.status,
+    ...(due ? { due } : {}),
+    ...(priority ? { priority } : {}),
+    ...(description ? { description } : {}),
+  };
 }
 
 function validateNote(value: unknown): NoteData {
@@ -29,7 +37,42 @@ function validateNote(value: unknown): NoteData {
 }
 
 function validateEvent(value: unknown): EventData {
-  return scheduleDefinition.validate(value);
+  const data = componentRecord(value, "event");
+  const schedule = scheduleDefinition.validate(data);
+  const location = optionalText(data.location, "event.location");
+  const description = optionalText(data.description, "event.description");
+  return {
+    ...schedule,
+    ...(location ? { location } : {}),
+    ...(description ? { description } : {}),
+  };
+}
+
+function optionalText(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (typeof value !== "string") throw new WorkspaceValidationError(`${field} must be a string`);
+  return value;
+}
+
+function optionalDate(value: unknown, field: string): string | undefined {
+  const date = optionalText(value, field);
+  if (date === undefined) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new WorkspaceValidationError(`${field} must be a calendar date`);
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new WorkspaceValidationError(`${field} must be a valid calendar date`);
+  }
+  return date;
+}
+
+function optionalPriority(value: unknown): TaskPriority | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (value !== "low" && value !== "medium" && value !== "high") {
+    throw new WorkspaceValidationError("task.priority must be low, medium, or high");
+  }
+  return value;
 }
 
 function validateTag(value: unknown): TagData {
@@ -52,7 +95,7 @@ export const nameDefinition: FeatureDefinition<NameData> = {
 export const taskDefinition: FeatureDefinition<TaskData> = {
   typeId: "task",
   schemaVersion: 1,
-  initialData: () => ({ status: "todo" }),
+  initialData: () => ({ status: "todo", priority: "medium" }),
   validate: validateTask,
 };
 

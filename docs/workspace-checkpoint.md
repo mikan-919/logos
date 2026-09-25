@@ -20,7 +20,7 @@ bun run workspace serve --port 4318
 - Task / Note / Eventを同一Entityに付けられる。
 - Tasks / Calendar / Notes / Tagged Notes / TagsをComponent要件から作る。
 - Notesで`Name + Note`と`Name + Note + Tag`を切り替えられる。
-- 各行から共通Popoverを開き、EntityのComponentを編集する。
+- 一覧と編集欄で主Componentを編集し、共通Popoverから他Componentを編集する。
 - TagはNameとThisIsTagを持つEntity。Tag ComponentがTag EntityのIDを参照する。
 - 現在状態と履歴を同一SQLiteトランザクションに保存する。
 - 旧SQLiteスキーマとversion 1バックアップから新形式へ移行する。
@@ -33,7 +33,7 @@ bun run workspace serve --port 4318
 - `src/workspace/kernel.ts`: Queryと共通Command。
 - `src/workspace/store.ts`: SQLite保存、旧DB移行。
 - `src/workspace/backup.ts`: version 2検証、version 1移行。
-- `src/workspace/ui.ts`: タブ、一覧、共通Popover。
+- `src/workspace/ui.ts`: タブ、一覧、編集欄、Calendar画面、共通Popover。
 - `test/workspace.public.test.ts`: Query、Tag、DB移行、バックアップ、HTTPの試験。
 
 ## 検証
@@ -43,7 +43,9 @@ bun run typecheck
 bun test
 ```
 
-HTMLのインラインスクリプトはページ生成後の内容で構文確認する。画面のMarkup検査を行う場合は`vlmkit`を使う。
+2026-09-25に型検査が通り、全60試験が通った。HTMLのインラインスクリプトも、ページ生成後の内容で構文確認する。
+
+画面のMarkup検査は未完了。`vlmkit`のブラウザー起動が`libglib-2.0.so.0`不足で失敗したため、環境にライブラリーを追加した後に再実行する。
 
 ## 未決事項
 

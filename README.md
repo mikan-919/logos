@@ -24,7 +24,7 @@ The workspace prototype is an ECS-based Second Brain, isolated from the semantic
 bun run workspace serve --port 4318
 ```
 
-Open `http://localhost:4318` to use the **Tasks**, **Calendar**, and **Notes** views. Each view queries the same Entities by required Components. For example, Tasks requires `Name + Task`; the tagged Notes view requires `Name + Note + Tag`. Each row shows its active Component count. Open that count to edit the Entity's Components in the shared dialog. An Entity may appear in several views without copying its Name or other data.
+Open `http://localhost:4318` to use the **Task**, **Calendar**, and **Note** views. Each view queries the same Entities by required Components. For example, Task requires `Name + Task`; the tagged Note filter requires `Name + Note + Tag`. Select an item to edit its main Component. Each list item has a `components` button that opens the shared popover for the Entity's Name and other Components. Calendar selection shows editable Event details. An Entity may appear in several views without copying its Name or other data. Changes are saved through the common command interface.
 
 `Name`, `Task`, `Note`, `Event`, `Tag`, and the `ThisIsTag` marker are Components. A Tag is an Entity with `Name + ThisIsTag`; other Entities store references to Tag Entity IDs in their `Tag` Component. Views require all listed Components; an absent optional Component simply excludes that Entity from that view. Current state and command history are saved together in `.logos-workspace/workspace.sqlite` (SQLite, a local database). This prototype does not read or migrate `.logos/events.jsonl`.
 

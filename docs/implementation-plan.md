@@ -22,7 +22,7 @@ NotionやObsidianのような情報管理を、ページ種別ではなくEntity
 - Name / Task / Note / Event / Tag / ThisIsTagのComponent定義と検証。
 - Tasks / Calendar / Notes / Tagged Notes / TagsのView定義。
 - 同一Entityに複数Componentを付ける共通Command経路とHTTP API。
-- 共通PopoverによるName、Task、Note、Event、Tagの表示・編集。
+- 一覧と編集欄を持つ画面、および共通PopoverによるNameと他Componentの表示・編集。
 - Tag Entity作成と、Tag Componentからの割当。
 - SQLiteのentities、components、relations、events表。NameはComponent表に保存。
 - 状態更新とイベント記録の同一トランザクション保存。

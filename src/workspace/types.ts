@@ -1,5 +1,6 @@
 export type TaskStatus = "todo" | "doing" | "done";
 export type ProgressStatus = TaskStatus;
+export type TaskPriority = "low" | "medium" | "high";
 
 export const WORKSPACE_EVENT_ENTITY_ID = "__workspace__" as const;
 
@@ -13,6 +14,9 @@ export interface NameData {
 
 export interface TaskData {
   status: TaskStatus;
+  due?: string;
+  priority?: TaskPriority;
+  description?: string;
 }
 
 export interface NoteData {
@@ -31,6 +35,8 @@ export interface EventData {
   startUtc: string;
   endUtc: string;
   timeZone: string;
+  location?: string;
+  description?: string;
 }
 
 export type ScheduleData = EventData;

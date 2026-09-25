@@ -304,6 +304,57 @@ describe("functional workspace kernel", () => {
     kernel.close();
   });
 
+  test("validates optional Task and Event details", async () => {
+    const kernel = await WorkspaceKernel.open(await workspace());
+    let entity = kernel.createEntity("仕様を書く", { operationId: "create-detailed" });
+    entity = kernel.addComponent(
+      entity.id,
+      "task",
+      { operationId: "add-detailed-task", expectedRevision: entity.revision },
+      { status: "doing", due: "2026-09-30", priority: "high", description: "APIの仕様" },
+    );
+    expect(entity.components.find((item) => item.typeId === "task")?.data).toEqual({
+      status: "doing",
+      due: "2026-09-30",
+      priority: "high",
+      description: "APIの仕様",
+    });
+
+    expect(() => kernel.updateComponent(
+      entity.id,
+      "task",
+      { status: "doing", due: "2026-02-30", priority: "high", description: "APIの仕様" },
+      { operationId: "invalid-task-date", expectedRevision: entity.revision },
+    )).toThrow(WorkspaceValidationError);
+    expect(() => kernel.updateComponent(
+      entity.id,
+      "task",
+      { status: "doing", priority: "urgent" },
+      { operationId: "invalid-task-priority", expectedRevision: entity.revision },
+    )).toThrow(WorkspaceValidationError);
+
+    entity = kernel.addComponent(
+      entity.id,
+      "event",
+      { operationId: "add-detailed-event", expectedRevision: entity.revision },
+      {
+        startUtc: "2026-09-30T09:00:00Z",
+        endUtc: "2026-09-30T10:00:00Z",
+        timeZone: "Asia/Tokyo",
+        location: "会議室A",
+        description: "設計確認",
+      },
+    );
+    expect(entity.components.find((item) => item.typeId === "event")?.data).toEqual({
+      startUtc: "2026-09-30T09:00:00.000Z",
+      endUtc: "2026-09-30T10:00:00.000Z",
+      timeZone: "Asia/Tokyo",
+      location: "会議室A",
+      description: "設計確認",
+    });
+    kernel.close();
+  });
+
   test("detects stale revisions and returns the first result for an operation retry", async () => {
     const kernel = await WorkspaceKernel.open(await workspace());
     const entity = kernel.createEntity("勉強会", { operationId: "create" });
@@ -982,12 +1033,16 @@ describe("functional workspace HTTP surface", () => {
     const response = await app(new Request("http://logos.local/"));
     expect(response.headers.get("content-type")).toContain("text/html");
     const html = await response.text();
-    expect(html).toContain("Tasks");
+    expect(html).toContain(">Task</button>");
     expect(html).toContain("Calendar");
-    expect(html).toContain("Notes");
+    expect(html).toContain(">Note</button>");
     expect(html).toContain("components");
-    expect(html).toContain("<dialog id=\"component-popover\"");
-    expect(html).toContain("Name + Note + Tag");
+    expect(html).toContain("role=\"tablist\"");
+    expect(html).toContain("renderListPane(type)");
+    expect(html).toContain("renderCalendar(selected)");
+    expect(html).toContain("component-count");
+    expect(html).toContain(".component-popover");
+    expect(html).toContain("tagged-notes");
     expect(html).toContain("未対応Component");
     expect(html).toContain("履歴");
     expect(html).toContain("エクスポート");

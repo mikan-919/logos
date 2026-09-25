@@ -25,9 +25,9 @@ EntityはID、作成・更新日時、revision、アーカイブ状態を持つ�
 | Component | データ | 役割 |
 | --- | --- | --- |
 | `Name` | `{ value: string }` | 全Viewで共有する名前 |
-| `Task` | `{ status: "todo" \| "doing" \| "done" }` | 作業状態 |
+| `Task` | `{ status: "todo" \| "doing" \| "done", due?: "YYYY-MM-DD", priority?: "low" \| "medium" \| "high", description?: string }` | 作業状態。期限、優先度、説明は任意 |
 | `Note` | `{ body: string }` | 本文 |
-| `Event` | `{ startUtc, endUtc, timeZone }` | 時刻付きの単発予定 |
+| `Event` | `{ startUtc, endUtc, timeZone, location?, description? }` | 時刻付きの単発予定 |
 | `Tag` | `{ entityIds: string[] }` | Tag Entityへの参照 |
 | `ThisIsTag` | `{}` | EntityをTagとして識別するmarker |
 | `Estimate` | `{ minutes: number }` | 既存拡張。正の整数の見積時間 |
@@ -62,7 +62,7 @@ Viewの`requires`にはComponent型IDを並べる。すべてのComponentを有�
 
 ## UI と更新
 
-上部にTasks、Calendar、Notesのタブを置く。各一覧の行には有効なComponent数を表示する。数を押すと共通Popoverを開き、同じEntityのName、Task、Note、Event、Tagなどを表示・編集する。常設の詳細欄は置かない。
+上部にTask、Calendar、Noteのタブを置く。画面は一覧と編集欄に分け、選択したEntityの主Componentを編集する。一覧の各Entityには有効なComponent数を表示するボタンを置き、共通Popoverを開いてNameや他のComponentを表示・編集できる。Calendarでは月表示と予定の編集欄を使う。Note一覧にはTag付きEntityだけに絞る条件を置く。
 
 UIとHTTPはSQLiteへ直接書き込まず、共通Commandを使う。現在状態とappend-onlyのイベント履歴は一つのSQLiteトランザクションで保存する。revisionで古い更新を拒否し、operationIdで再送を識別する。
 
