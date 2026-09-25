@@ -1,4 +1,5 @@
-export type ProgressStatus = "todo" | "doing" | "done";
+export type TaskStatus = "todo" | "doing" | "done";
+export type ProgressStatus = TaskStatus;
 
 export const WORKSPACE_EVENT_ENTITY_ID = "__workspace__" as const;
 
@@ -6,23 +7,44 @@ export interface BodyData {
   markdown: string;
 }
 
+export interface NameData {
+  value: string;
+}
+
+export interface TaskData {
+  status: TaskStatus;
+}
+
+export interface NoteData {
+  body: string;
+}
+
+export interface TagData {
+  entityIds: string[];
+}
+
 export interface ProgressData {
   status: ProgressStatus;
 }
 
-export interface ScheduleData {
+export interface EventData {
   startUtc: string;
   endUtc: string;
   timeZone: string;
 }
 
+export type ScheduleData = EventData;
+
 export interface WorkspaceEntity {
   id: string;
-  name: string;
   createdAt: string;
   updatedAt: string;
   revision: number;
   archivedAt?: string;
+}
+
+export interface WorkspaceEntitySummary extends WorkspaceEntity {
+  name: string;
 }
 
 export interface WorkspaceComponent<T = unknown> {
@@ -36,7 +58,7 @@ export interface WorkspaceComponent<T = unknown> {
   disabledAt?: string;
 }
 
-export interface WorkspaceEntityView extends WorkspaceEntity {
+export interface WorkspaceEntityView extends WorkspaceEntitySummary {
   components: WorkspaceComponent[];
 }
 
@@ -66,9 +88,9 @@ export interface EntityQuery {
 }
 
 export interface CalendarEntry {
-  entity: WorkspaceEntity;
-  schedule: WorkspaceComponent<ScheduleData>;
-  progress?: WorkspaceComponent<ProgressData>;
+  entity: WorkspaceEntitySummary;
+  event: WorkspaceComponent<EventData>;
+  task?: WorkspaceComponent<TaskData>;
 }
 
 export type WorkspaceCommandName =
@@ -100,7 +122,7 @@ export interface WorkspaceEvent {
 
 export interface WorkspaceExport {
   format: "logos.workspace";
-  version: 1;
+  version: 1 | 2;
   exportedAt: string;
   entities: WorkspaceEntity[];
   components: WorkspaceComponent[];

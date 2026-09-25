@@ -3,6 +3,14 @@ import { bodyDefinition } from "./components/body";
 import { progressDefinition } from "./components/progress";
 import { scheduleDefinition } from "./components/schedule";
 import { estimateDefinition } from "./components/estimate";
+import {
+  eventDefinition,
+  nameDefinition,
+  noteDefinition,
+  tagDefinition,
+  taskDefinition,
+  thisIsTagDefinition,
+} from "./components/brain";
 
 export interface FeatureDefinition<T = unknown> {
   typeId: string;
@@ -45,6 +53,12 @@ export class ComponentRegistry {
 }
 
 export const workspaceComponentRegistry = new ComponentRegistry([
+  nameDefinition,
+  taskDefinition,
+  noteDefinition,
+  eventDefinition,
+  tagDefinition,
+  thisIsTagDefinition,
   bodyDefinition,
   progressDefinition,
   scheduleDefinition,

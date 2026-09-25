@@ -3,13 +3,18 @@ import { validateWorkspaceExport } from "./backup";
 import { ComponentRegistry, workspaceComponentRegistry } from "./features";
 import { buildWorkspaceSample } from "./sample";
 import { WorkspaceStore } from "./store";
+import { nameDefinition } from "./components/brain";
+import { workspaceView, workspaceViews, type WorkspaceViewDefinition } from "./views";
 import { WORKSPACE_EVENT_ENTITY_ID } from "./types";
 import type {
   CommandMetadata,
   CalendarEntry,
   EntityQuery,
+  EventData,
+  NameData,
   ProgressData,
-  ScheduleData,
+  TagData,
+  TaskData,
   WorkspaceCommandName,
   WorkspaceComponent,
   WorkspaceEntity,
@@ -29,6 +34,11 @@ export interface CreateEntityMetadata {
   actor?: string;
 }
 
+export interface CreateComponentInput {
+  typeId: string;
+  data: unknown;
+}
+
 export interface RestoreWorkspaceMetadata {
   operationId: string;
   actor?: string;
@@ -43,6 +53,13 @@ function actor(metadata: { actor?: string }): string {
   return metadata.actor?.trim() || "local-user";
 }
 
+function withNameComponent(registry: ComponentRegistry): ComponentRegistry {
+  if (registry.has("name")) return registry;
+  const combined = new ComponentRegistry([nameDefinition]);
+  for (const typeId of registry.typeIds()) combined.register(registry.get(typeId));
+  return combined;
+}
+
 export class WorkspaceKernel {
   private constructor(
     private readonly store: WorkspaceStore,
@@ -53,7 +70,7 @@ export class WorkspaceKernel {
     workspace: string,
     componentRegistry: ComponentRegistry = workspaceComponentRegistry,
   ): Promise<WorkspaceKernel> {
-    return new WorkspaceKernel(await WorkspaceStore.open(workspace), componentRegistry);
+    return new WorkspaceKernel(await WorkspaceStore.open(workspace), withNameComponent(componentRegistry));
   }
 
   static async restoreFromExport(
@@ -63,7 +80,8 @@ export class WorkspaceKernel {
     componentRegistry: ComponentRegistry = workspaceComponentRegistry,
   ): Promise<WorkspaceKernel> {
     if (!metadata.operationId.trim()) throw new WorkspaceValidationError("operationId is required");
-    const snapshot = validateWorkspaceExport(value, componentRegistry);
+    const registry = withNameComponent(componentRegistry);
+    const snapshot = validateWorkspaceExport(value, registry);
     const store = await WorkspaceStore.open(workspace);
     try {
       const previous = store.eventByOperation(metadata.operationId);
@@ -73,7 +91,7 @@ export class WorkspaceKernel {
             `operationId ${metadata.operationId} was already used for ${previous.command}`,
           );
         }
-        return new WorkspaceKernel(store, componentRegistry);
+        return new WorkspaceKernel(store, registry);
       }
       if (snapshot.events.some((event) => event.operationId === metadata.operationId)) {
         throw new WorkspaceValidationError(
@@ -101,7 +119,7 @@ export class WorkspaceKernel {
         actor: actor(metadata),
         at,
       });
-      return new WorkspaceKernel(store, componentRegistry);
+      return new WorkspaceKernel(store, registry);
     } catch (error) {
       store.close();
       throw error;
@@ -118,6 +136,10 @@ export class WorkspaceKernel {
 
   componentTypeIds(): string[] {
     return this.componentRegistry.typeIds();
+  }
+
+  viewDefinitions(): WorkspaceViewDefinition[] {
+    return workspaceViews;
   }
 
   exportWorkspace(): WorkspaceExport {
@@ -157,12 +179,33 @@ export class WorkspaceKernel {
       if (!query.includeArchived && entity.archivedAt) return false;
       if (name && !entity.name.toLocaleLowerCase().includes(name)) return false;
       const progress = entity.components.find(
-        (component) => component.typeId === "progress" && component.active,
+        (component) => (component.typeId === "task" || component.typeId === "progress") && component.active,
       ) as WorkspaceComponent<ProgressData> | undefined;
       if (query.hasProgress !== undefined && Boolean(progress) !== query.hasProgress) return false;
       if (query.progress && progress?.data.status !== query.progress) return false;
       return true;
     });
+  }
+
+  query(requiredComponents: string[], query: EntityQuery = {}): WorkspaceEntityView[] {
+    const required = [...new Set(requiredComponents)];
+    return this.list(query).filter((entity) =>
+      required.every((typeId) => entity.components.some(
+        (component) => component.typeId === typeId && component.active,
+      )),
+    );
+  }
+
+  view(id: string, extraRequirements: string[] = []): {
+    definition: WorkspaceViewDefinition;
+    entities: WorkspaceEntityView[];
+  } | undefined {
+    const definition = workspaceView(id);
+    if (!definition) return undefined;
+    return {
+      definition,
+      entities: this.query([...definition.requires, ...extraRequirements]),
+    };
   }
 
   history(entityId?: string): WorkspaceEvent[] {
@@ -180,21 +223,21 @@ export class WorkspaceKernel {
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
       throw new WorkspaceValidationError("Calendar range must have a valid start and later end");
     }
-    return this.list().flatMap((entity) => {
-      const rawSchedule = entity.components.find(
-        (component) => component.typeId === "schedule" && component.active,
+    return this.query(["name", "event"]).flatMap((entity) => {
+      const rawEvent = entity.components.find(
+        (component) => component.typeId === "event" && component.active,
       );
-      if (!rawSchedule) return [];
-      const scheduleData = this.componentRegistry.get<ScheduleData>("schedule").validate(rawSchedule.data);
-      if (Date.parse(scheduleData.startUtc) >= end || Date.parse(scheduleData.endUtc) <= start) {
+      if (!rawEvent) return [];
+      const eventData = this.componentRegistry.get<EventData>("event").validate(rawEvent.data);
+      if (Date.parse(eventData.startUtc) >= end || Date.parse(eventData.endUtc) <= start) {
         return [];
       }
-      const schedule: WorkspaceComponent<ScheduleData> = { ...rawSchedule, data: scheduleData };
-      const rawProgress = entity.components.find(
-        (component) => component.typeId === "progress" && component.active,
+      const event: WorkspaceComponent<EventData> = { ...rawEvent, data: eventData };
+      const rawTask = entity.components.find(
+        (component) => component.typeId === "task" && component.active,
       );
-      const progress = rawProgress
-        ? { ...rawProgress, data: this.componentRegistry.get<ProgressData>("progress").validate(rawProgress.data) }
+      const task = rawTask
+        ? { ...rawTask, data: this.componentRegistry.get<TaskData>("task").validate(rawTask.data) }
         : undefined;
       return [{
         entity: {
@@ -205,16 +248,20 @@ export class WorkspaceKernel {
           revision: entity.revision,
           ...(entity.archivedAt ? { archivedAt: entity.archivedAt } : {}),
         },
-        schedule,
-        ...(progress ? { progress } : {}),
+        event,
+        ...(task ? { task } : {}),
       }];
     }).sort((left, right) =>
-      left.schedule.data.startUtc.localeCompare(right.schedule.data.startUtc)
+      left.event.data.startUtc.localeCompare(right.event.data.startUtc)
       || left.entity.name.localeCompare(right.entity.name),
     );
   }
 
-  createEntity(name: string, metadata: CreateEntityMetadata): WorkspaceEntityView {
+  createEntity(
+    name: string,
+    metadata: CreateEntityMetadata,
+    initialComponents: CreateComponentInput[] = [],
+  ): WorkspaceEntityView {
     const replay = this.replay(metadata.operationId, "entity.create");
     if (replay) return this.requiredEntity(replay.entityId);
     const trimmedName = name.trim();
@@ -222,11 +269,42 @@ export class WorkspaceKernel {
     const at = timestamp();
     const entity: WorkspaceEntity = {
       id: identifier("went"),
-      name: trimmedName,
       createdAt: at,
       updatedAt: at,
       revision: 0,
     };
+    const seen = new Set(["name"]);
+    const components: WorkspaceComponent[] = [{
+      entityId: entity.id,
+      typeId: "name",
+      schemaVersion: this.componentRegistry.get<NameData>("name").schemaVersion,
+      data: this.componentRegistry.get<NameData>("name").validate({ value: trimmedName }),
+      active: true,
+      createdAt: at,
+      updatedAt: at,
+    }];
+    for (const input of initialComponents) {
+      if (seen.has(input.typeId)) {
+        throw new WorkspaceValidationError(`Duplicate initial component: ${input.typeId}`);
+      }
+      seen.add(input.typeId);
+      const definition = this.componentRegistry.get(input.typeId);
+      const data = input.data ?? definition.initialData?.();
+      if (data === undefined) {
+        throw new WorkspaceValidationError(`Initial data is required for ${input.typeId}`);
+      }
+      const component: WorkspaceComponent = {
+        entityId: entity.id,
+        typeId: input.typeId,
+        schemaVersion: definition.schemaVersion,
+        data: definition.validate(data),
+        active: true,
+        createdAt: at,
+        updatedAt: at,
+      };
+      if (input.typeId === "tag") this.validateTagReferences(entity.id, component.data as TagData);
+      components.push(component);
+    }
     this.store.save(entity, {
       id: identifier("wevt"),
       schemaVersion: 1,
@@ -235,20 +313,47 @@ export class WorkspaceKernel {
       command: "entity.create",
       beforeRevision: -1,
       afterRevision: 0,
-      changes: { entity },
+      changes: { entityId: entity.id, initialComponents: components.map(({ typeId }) => typeId) },
       actor: actor(metadata),
       at,
-    });
+    }, components);
     return this.requiredEntity(entity.id);
   }
 
   renameEntity(entityId: string, name: string, metadata: CommandMetadata): WorkspaceEntityView {
     const trimmedName = name.trim();
     if (!trimmedName) throw new WorkspaceValidationError("Entity name is required");
-    return this.updateEntity(entityId, "entity.rename", metadata, (entity, at) => ({
-      entity: { ...entity, name: trimmedName, updatedAt: at, revision: entity.revision + 1 },
-      changes: { name: { from: entity.name, to: trimmedName } },
-    }));
+    const replay = this.replay(metadata.operationId, "entity.rename");
+    if (replay) return this.requiredEntity(replay.entityId);
+    const current = this.requiredEntity(entityId);
+    this.assertRevision(current, metadata.expectedRevision);
+    const at = timestamp();
+    const next: WorkspaceEntity = {
+      id: current.id,
+      createdAt: current.createdAt,
+      updatedAt: at,
+      revision: current.revision + 1,
+      ...(current.archivedAt ? { archivedAt: current.archivedAt } : {}),
+    };
+    const nameComponent = this.store.component(entityId, "name");
+    if (!nameComponent?.active) {
+      throw new WorkspaceValidationError("Entity must have an active Name component");
+    }
+    const nextName: WorkspaceComponent = {
+      ...nameComponent,
+      data: this.componentRegistry.get<NameData>("name").validate({ value: trimmedName }),
+      updatedAt: at,
+    };
+    this.store.save(next, this.event(
+      "entity.rename",
+      metadata,
+      current.revision,
+      next.revision,
+      entityId,
+      { name: { from: current.name, to: trimmedName } },
+      at,
+    ), [nextName]);
+    return this.requiredEntity(entityId);
   }
 
   archiveEntity(entityId: string, metadata: CommandMetadata): WorkspaceEntityView {
@@ -303,6 +408,16 @@ export class WorkspaceKernel {
     typeId: string,
     metadata: CommandMetadata,
   ): WorkspaceEntityView {
+    if (typeId === "name") {
+      throw new WorkspaceValidationError("Name is required for every entity");
+    }
+    if (typeId === "this-is-tag" && this.store.entities().some((entity) => {
+      const tag = entity.components.find((component) => component.typeId === "tag" && component.active);
+      return Array.isArray((tag?.data as TagData | undefined)?.entityIds)
+        && (tag!.data as TagData).entityIds.includes(entityId);
+    })) {
+      throw new WorkspaceValidationError("This entity is used as a Tag");
+    }
     return this.mutateComponent(entityId, typeId, "component.disable", metadata, (current, at) => {
       if (!current?.active) {
         throw new WorkspaceValidationError(`Active component not found: ${typeId}`);
@@ -464,6 +579,9 @@ export class WorkspaceKernel {
     this.assertRevision(currentEntity, metadata.expectedRevision);
     const at = timestamp();
     const result = change(this.store.component(entityId, typeId), at);
+    if (typeId === "tag" && result.component.active) {
+      this.validateTagReferences(entityId, result.component.data as TagData);
+    }
     const nextEntity: WorkspaceEntity = result.increment
       ? { ...currentEntity, updatedAt: at, revision: currentEntity.revision + 1 }
       : currentEntity;
@@ -476,7 +594,7 @@ export class WorkspaceKernel {
       result.changes,
       at,
     );
-    this.store.save(nextEntity, event, result.component);
+    this.store.save(nextEntity, event, [result.component]);
     return this.requiredEntity(entityId);
   }
 
@@ -507,7 +625,7 @@ export class WorkspaceKernel {
     const nextEntity: WorkspaceEntity = result.increment
       ? { ...currentEntity, updatedAt: at, revision: currentEntity.revision + 1 }
       : currentEntity;
-    this.store.save(
+      this.store.save(
       nextEntity,
       this.event(
         command,
@@ -518,7 +636,7 @@ export class WorkspaceKernel {
         result.changes,
         at,
       ),
-      undefined,
+      [],
       result.relation,
     );
     return result.relation;
@@ -574,6 +692,19 @@ export class WorkspaceKernel {
     const entity = this.store.entity(entityId);
     if (!entity) throw new WorkspaceValidationError(`Unknown entity: ${entityId}`);
     return entity;
+  }
+
+  private validateTagReferences(entityId: string, tag: TagData): void {
+    for (const tagEntityId of tag.entityIds) {
+      if (tagEntityId === entityId) {
+        throw new WorkspaceValidationError("An entity cannot tag itself");
+      }
+      const target = this.store.entity(tagEntityId);
+      if (!target) throw new WorkspaceValidationError(`Unknown Tag entity: ${tagEntityId}`);
+      if (!target.components.some((component) => component.typeId === "this-is-tag" && component.active)) {
+        throw new WorkspaceValidationError(`Entity is not marked as a Tag: ${tagEntityId}`);
+      }
+    }
   }
 
   private assertRevision(entity: WorkspaceEntity, expectedRevision: number): void {

@@ -42,8 +42,8 @@ describe("workspace component registry", () => {
       { operationId: "add-score", expectedRevision: entity.revision },
       { points: 3 },
     );
-    expect(kernel.componentTypeIds()).toEqual(["score"]);
-    expect(updated.components[0]).toMatchObject({
+    expect(kernel.componentTypeIds()).toEqual(["name", "score"]);
+    expect(updated.components.find((component) => component.typeId === "score")).toMatchObject({
       typeId: "score",
       schemaVersion: 1,
       data: { points: 3 },
@@ -51,7 +51,7 @@ describe("workspace component registry", () => {
     kernel.close();
 
     kernel = await WorkspaceKernel.open(root, registry);
-    expect(kernel.get(entity.id)?.components[0]?.data).toEqual({ points: 3 });
+    expect(kernel.get(entity.id)?.components.find((component) => component.typeId === "score")?.data).toEqual({ points: 3 });
     kernel.close();
   });
 
@@ -80,12 +80,16 @@ describe("workspace component registry", () => {
       { minutes: 90 },
     );
 
-    expect(kernel.componentTypeIds()).toEqual(["body", "progress", "schedule", "estimate"]);
+    expect(kernel.componentTypeIds()).toEqual([
+      "name", "task", "note", "event", "tag", "this-is-tag",
+      "body", "progress", "schedule", "estimate",
+    ]);
     expect(entity.id).toBe(originalId);
-    expect(entity.components).toEqual([
+    expect(entity.components).toEqual(expect.arrayContaining([
       expect.objectContaining({ typeId: "body", data: { markdown: "記事の本文" } }),
       expect.objectContaining({ typeId: "estimate", schemaVersion: 1, data: { minutes: 90 } }),
-    ]);
+      expect.objectContaining({ typeId: "name", data: { value: "記事を書く" } }),
+    ]));
     const historyLength = kernel.history(entity.id).length;
     expect(() => kernel.updateComponent(
       entity.id,

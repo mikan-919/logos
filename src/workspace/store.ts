@@ -14,7 +14,6 @@ import type {
 
 interface EntityRow {
   id: string;
-  name: string;
   created_at: string;
   updated_at: string;
   revision: number;
@@ -61,12 +60,74 @@ interface RelationRow {
 function entityFromRow(row: EntityRow): WorkspaceEntity {
   return {
     id: row.id,
-    name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     revision: row.revision,
     ...(row.archived_at ? { archivedAt: row.archived_at } : {}),
   };
+}
+
+function entityName(components: WorkspaceComponent[]): string {
+  const component = components.find((item) => item.typeId === "name" && item.active);
+  const value = (component?.data as { value?: unknown } | undefined)?.value;
+  if (typeof value !== "string" || !value.trim()) {
+    throw new WorkspaceValidationError("Entity is missing an active Name component");
+  }
+  return value;
+}
+
+function migrateLegacyEntityName(database: Database): void {
+  const columns = database.query<{ name: string }, []>("PRAGMA table_info(entities)").all();
+  if (!columns.some((column) => column.name === "name")) return;
+
+  const transaction = database.transaction(() => {
+    const entities = database.query<{
+      id: string;
+      name: string;
+      created_at: string;
+      updated_at: string;
+    }, []>("SELECT id, name, created_at, updated_at FROM entities").all();
+    const insertName = database.query(
+      `INSERT OR IGNORE INTO components
+        (entity_id, type_id, schema_version, data_json, active, created_at, updated_at, disabled_at)
+       VALUES (?, 'name', 1, ?, 1, ?, ?, NULL)`,
+    );
+    for (const entity of entities) {
+      insertName.run(
+        entity.id,
+        JSON.stringify({ value: entity.name }),
+        entity.created_at,
+        entity.updated_at,
+      );
+    }
+
+    const legacyComponents = database.query<{
+      entity_id: string;
+      type_id: string;
+      data_json: string;
+    }, []>("SELECT entity_id, type_id, data_json FROM components WHERE type_id IN ('body', 'progress', 'schedule')").all();
+    for (const component of legacyComponents) {
+      const targetType = component.type_id === "body"
+        ? "note"
+        : component.type_id === "progress"
+          ? "task"
+          : "event";
+      const exists = database.query(
+        "SELECT 1 FROM components WHERE entity_id = ? AND type_id = ?",
+      ).get(component.entity_id, targetType);
+      if (exists) continue;
+      let data: unknown = JSON.parse(component.data_json);
+      if (component.type_id === "body") {
+        data = { body: (data as { markdown?: unknown }).markdown };
+      }
+      database.query(
+        "UPDATE components SET type_id = ?, data_json = ? WHERE entity_id = ? AND type_id = ?",
+      ).run(targetType, JSON.stringify(data), component.entity_id, component.type_id);
+    }
+
+    database.exec("ALTER TABLE entities DROP COLUMN name");
+  });
+  transaction.immediate();
 }
 
 function componentFromRow(row: ComponentRow): WorkspaceComponent {
@@ -128,7 +189,6 @@ export class WorkspaceStore {
     database.exec(`
       CREATE TABLE IF NOT EXISTS entities (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         revision INTEGER NOT NULL CHECK (revision >= 0),
@@ -180,6 +240,8 @@ export class WorkspaceStore {
       CREATE INDEX IF NOT EXISTS relations_to_active
         ON relations(to_entity_id, active);
     `);
+    migrateLegacyEntityName(database);
+    database.exec("PRAGMA user_version = 2");
     return new WorkspaceStore(database, path);
   }
 
@@ -192,20 +254,18 @@ export class WorkspaceStore {
       .query<EntityRow, [string]>("SELECT * FROM entities WHERE id = ?")
       .get(entityId);
     if (!row) return undefined;
-    return {
-      ...entityFromRow(row),
-      components: this.components(entityId),
-    };
+    const components = this.components(entityId);
+    return { ...entityFromRow(row), name: entityName(components), components };
   }
 
   entities(): WorkspaceEntityView[] {
     const rows = this.database
       .query<EntityRow, []>("SELECT * FROM entities ORDER BY created_at, id")
       .all();
-    return rows.map((row) => ({
-      ...entityFromRow(row),
-      components: this.components(row.id),
-    }));
+    return rows.map((row) => {
+      const components = this.components(row.id);
+      return { ...entityFromRow(row), name: entityName(components), components };
+    });
   }
 
   component(entityId: string, typeId: string): WorkspaceComponent | undefined {
@@ -252,7 +312,7 @@ export class WorkspaceStore {
   exportWorkspace(exportedAt: string): WorkspaceExport {
     const views = this.entities();
     const entities = views.map((view) => {
-      const { components: _components, ...entity } = view;
+      const { components: _components, name: _name, ...entity } = view;
       return entity;
     });
     return {
@@ -311,20 +371,22 @@ export class WorkspaceStore {
   save(
     entity: WorkspaceEntity,
     event: WorkspaceEvent,
-    component?: WorkspaceComponent,
+    components: WorkspaceComponent[] = [],
     relation?: WorkspaceRelation,
   ): void {
     const transaction = this.database.transaction(() => {
       if (event.beforeRevision === -1) {
+        if (!components.some((component) => component.entityId === entity.id && component.typeId === "name" && component.active)) {
+          throw new WorkspaceValidationError("New entities require an active Name component");
+        }
         this.database
           .query(
             `INSERT INTO entities
-              (id, name, created_at, updated_at, revision, archived_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+              (id, created_at, updated_at, revision, archived_at)
+             VALUES (?, ?, ?, ?, ?)`,
           )
           .run(
             entity.id,
-            entity.name,
             entity.createdAt,
             entity.updatedAt,
             entity.revision,
@@ -334,11 +396,10 @@ export class WorkspaceStore {
         const result = this.database
           .query(
             `UPDATE entities
-                SET name = ?, updated_at = ?, revision = ?, archived_at = ?
+                SET updated_at = ?, revision = ?, archived_at = ?
               WHERE id = ? AND revision = ?`,
           )
           .run(
-            entity.name,
             entity.updatedAt,
             entity.revision,
             entity.archivedAt ?? null,
@@ -357,7 +418,7 @@ export class WorkspaceStore {
         }
       }
 
-      if (component) {
+      for (const component of components) {
         this.database
           .query(
             `INSERT INTO components
@@ -443,15 +504,17 @@ export class WorkspaceStore {
       }
 
       for (const entity of entities) {
+        if (!components.some((component) => component.entityId === entity.id && component.typeId === "name" && component.active)) {
+          throw new WorkspaceValidationError(`Sample entity ${entity.id} is missing its Name component`);
+        }
         this.database
           .query(
             `INSERT INTO entities
-              (id, name, created_at, updated_at, revision, archived_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+              (id, created_at, updated_at, revision, archived_at)
+             VALUES (?, ?, ?, ?, ?)`,
           )
           .run(
             entity.id,
-            entity.name,
             entity.createdAt,
             entity.updatedAt,
             entity.revision,
@@ -534,12 +597,11 @@ export class WorkspaceStore {
         this.database
           .query(
             `INSERT INTO entities
-              (id, name, created_at, updated_at, revision, archived_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+              (id, created_at, updated_at, revision, archived_at)
+             VALUES (?, ?, ?, ?, ?)`,
           )
           .run(
             entity.id,
-            entity.name,
             entity.createdAt,
             entity.updatedAt,
             entity.revision,

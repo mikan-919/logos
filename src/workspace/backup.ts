@@ -11,7 +11,7 @@ import {
 } from "./types";
 
 export const WORKSPACE_EXPORT_FORMAT = "logos.workspace" as const;
-export const WORKSPACE_EXPORT_VERSION = 1 as const;
+export const WORKSPACE_EXPORT_VERSION = 2 as const;
 
 const commands: readonly WorkspaceCommandName[] = [
   "entity.create",
@@ -81,16 +81,21 @@ function unique(values: string[], label: string): void {
   }
 }
 
-function parseEntity(value: unknown, index: number): WorkspaceEntity {
+function parseEntity(value: unknown, index: number): { entity: WorkspaceEntity; legacyName?: string } {
   const item = record(value, `entities[${index}]`);
   const archivedAt = optionalString(item, "archivedAt", `entities[${index}].archivedAt`);
+  const legacyName = item.name === undefined
+    ? undefined
+    : stringValue(item.name, `entities[${index}].name`);
   return {
-    id: stringValue(item.id, `entities[${index}].id`),
-    name: stringValue(item.name, `entities[${index}].name`),
-    createdAt: stringValue(item.createdAt, `entities[${index}].createdAt`),
-    updatedAt: stringValue(item.updatedAt, `entities[${index}].updatedAt`),
-    revision: integerValue(item.revision, `entities[${index}].revision`, 0),
-    ...(archivedAt === undefined ? {} : { archivedAt }),
+    entity: {
+      id: stringValue(item.id, `entities[${index}].id`),
+      createdAt: stringValue(item.createdAt, `entities[${index}].createdAt`),
+      updatedAt: stringValue(item.updatedAt, `entities[${index}].updatedAt`),
+      revision: integerValue(item.revision, `entities[${index}].revision`, 0),
+      ...(archivedAt === undefined ? {} : { archivedAt }),
+    },
+    ...(legacyName === undefined ? {} : { legacyName }),
   };
 }
 
@@ -128,6 +133,18 @@ function parseComponent(
     updatedAt: stringValue(item.updatedAt, `components[${index}].updatedAt`),
     ...(disabledAt === undefined ? {} : { disabledAt }),
   };
+}
+
+function upgradeLegacyComponent(value: unknown, index: number, migrate: boolean): unknown {
+  const item = record(value, `components[${index}]`);
+  if (!migrate) return item;
+  if (item.typeId === "body") {
+    const body = record(item.data, `components[${index}].data`);
+    return { ...item, typeId: "note", data: { body: body.markdown } };
+  }
+  if (item.typeId === "progress") return { ...item, typeId: "task" };
+  if (item.typeId === "schedule") return { ...item, typeId: "event" };
+  return item;
 }
 
 function parseRelation(
@@ -202,17 +219,54 @@ export function validateWorkspaceExport(
   if (item.format !== WORKSPACE_EXPORT_FORMAT) {
     throw new WorkspaceValidationError(`Unsupported workspace export format: ${String(item.format)}`);
   }
-  if (item.version !== WORKSPACE_EXPORT_VERSION) {
+  if (item.version !== 1 && item.version !== WORKSPACE_EXPORT_VERSION) {
     throw new WorkspaceValidationError(`Unsupported workspace export version: ${String(item.version)}`);
   }
-  const entities = arrayValue(item.entities, "entities").map(parseEntity);
+  const parsedEntities = arrayValue(item.entities, "entities").map(parseEntity);
+  const entities = parsedEntities.map(({ entity }) => entity);
   const entityIds = entities.map((entity) => entity.id);
   unique(entityIds, "entities");
   const entityIdSet = new Set(entityIds);
 
   const components = arrayValue(item.components, "components").map((component, index) =>
-    parseComponent(component, index, entityIdSet, componentRegistry),
+    parseComponent(upgradeLegacyComponent(component, index, item.version === 1), index, entityIdSet, componentRegistry),
   );
+  for (const { entity, legacyName } of parsedEntities) {
+    if (components.some((component) => component.entityId === entity.id && component.typeId === "name")) {
+      continue;
+    }
+    if (!legacyName) {
+      throw new WorkspaceValidationError(`Entity ${entity.id} is missing its Name component`);
+    }
+    const name = componentRegistry.get<{ value: string }>("name").validate({ value: legacyName });
+    components.push({
+      entityId: entity.id,
+      typeId: "name",
+      schemaVersion: componentRegistry.get("name").schemaVersion,
+      data: name,
+      active: true,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    });
+  }
+  for (const entity of entities) {
+    const name = components.find((component) => component.entityId === entity.id && component.typeId === "name");
+    if (!name?.active) {
+      throw new WorkspaceValidationError(`Entity ${entity.id} must have an active Name component`);
+    }
+  }
+  const tagEntityIds = new Set(components.flatMap((component) =>
+    component.active && component.typeId === "this-is-tag" ? [component.entityId] : [],
+  ));
+  for (const component of components) {
+    if (!component.active || component.typeId !== "tag") continue;
+    const tagIds = (component.data as { entityIds: string[] }).entityIds;
+    for (const tagId of tagIds) {
+      if (!entityIdSet.has(tagId) || !tagEntityIds.has(tagId) || tagId === component.entityId) {
+        throw new WorkspaceValidationError(`Component ${component.entityId}/tag refers to an invalid Tag entity`);
+      }
+    }
+  }
   unique(components.map((component) => `${component.entityId}\u0000${component.typeId}`), "components");
 
   const relations = arrayValue(item.relations, "relations").map((relation, index) =>

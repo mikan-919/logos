@@ -1,12 +1,12 @@
 import { estimateDefinition, type EstimateData } from "../components/estimate";
-import type { WorkspaceComponent, WorkspaceEntity, WorkspaceEntityView } from "../types";
+import type { WorkspaceComponent, WorkspaceEntitySummary, WorkspaceEntityView } from "../types";
 
 export interface EstimateEntry {
-  entity: WorkspaceEntity;
+  entity: WorkspaceEntitySummary;
   estimate: WorkspaceComponent<EstimateData>;
 }
 
-function entityState(entity: WorkspaceEntityView): WorkspaceEntity {
+function entityState(entity: WorkspaceEntityView): WorkspaceEntitySummary {
   return {
     id: entity.id,
     name: entity.name,

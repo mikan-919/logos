@@ -18,17 +18,19 @@ All semantic-context MVP data is local and append-only at `.logos/events.jsonl`.
 
 ## Functional workspace prototype
 
-The functional workspace prototype is isolated from the semantic-context MVP. Start its input UI with:
+The workspace prototype is an ECS-based Second Brain, isolated from the semantic-context MVP. Start its UI with:
 
 ```bash
 bun run workspace serve --port 4318
 ```
 
-Open `http://localhost:4318` to use the entity list, composed detail view, and week calendar. Body, Progress, and Schedule components can be added, updated, disabled, and restored. Entity references and cross-view refresh use the same command boundary. Current state and command history are committed together in `.logos-workspace/workspace.sqlite`; the prototype does not read or migrate `.logos/events.jsonl`.
+Open `http://localhost:4318` to use the **Tasks**, **Calendar**, and **Notes** views. Each view queries the same Entities by required Components. For example, Tasks requires `Name + Task`; the tagged Notes view requires `Name + Note + Tag`. Each row shows its active Component count. Open that count to edit the Entity's Components in the shared dialog. An Entity may appear in several views without copying its Name or other data.
 
-On a new empty workspace, select **サンプルデータを読み込む** to load a small, history-backed walkthrough. It creates `勉強会を開催する` and `記事を書く` with Body, Progress, and Schedule components, then opens the first detail view so the shared ID, calendar data, and history can be checked. Sample loading is refused when the workspace is not empty and retrying the same operation is idempotent. The same operation is also available as `POST /api/workspace/sample` with a required `operationId`.
+`Name`, `Task`, `Note`, `Event`, `Tag`, and the `ThisIsTag` marker are Components. A Tag is an Entity with `Name + ThisIsTag`; other Entities store references to Tag Entity IDs in their `Tag` Component. Views require all listed Components; an absent optional Component simply excludes that Entity from that view. Current state and command history are saved together in `.logos-workspace/workspace.sqlite` (SQLite, a local database). This prototype does not read or migrate `.logos/events.jsonl`.
 
-The model, command contracts, entity-boundary examples, and reuse decisions are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled-component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md).
+On a new empty workspace, select **サンプルを読み込む** to add three Entities, including a Note, a scheduled Event, a Task, and a Tag Entity. Sample loading is refused when the workspace is not empty. Retrying the same `operationId` returns the original result. The same operation is available as `POST /api/workspace/sample`.
+
+The data model and implementation choices are recorded in [docs/workspace-model.md](docs/workspace-model.md). The bundled Component registration process is documented in [docs/workspace-features.md](docs/workspace-features.md). The former Body / Progress / Schedule database and version 1 backup formats are migrated to Name / Note / Task / Event when possible; backups are now exported as version 2.
 
 Coding agents can read the same workspace state through a separate MCP-compatible stdio server:
 
@@ -54,9 +56,7 @@ Configure an MCP client with the project containing `.logos-workspace/` as `cwd`
 
 The `cwd` setting selects the workspace database. It must not point at the Logos source repository unless that repository is the workspace you intend to read.
 
-The stage-five usage observation procedure and record template are in [docs/workspace-usage-observation.md](docs/workspace-usage-observation.md). It records actual use and comparison with existing tools without changing the workspace data model.
-
-The original implementation plan and the restart checkpoint are [docs/implementation-plan.md](docs/implementation-plan.md) and [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md). Continue work from the checkpoint after reading both documents.
+The current implementation status and open model questions are in [docs/implementation-plan.md](docs/implementation-plan.md). The implementation handoff is in [docs/workspace-checkpoint.md](docs/workspace-checkpoint.md).
 
 ## Five-minute walkthrough
 

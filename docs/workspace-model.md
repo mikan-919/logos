@@ -1,130 +1,85 @@
-# 機能構成型ワークスペースのモデルと操作契約
+# ECS Second Brain のデータモデル
 
-日付: 2026-09-07
+最終更新: 2026-09-25
 
 ## 目的
 
-この試作は、同じEntityへComponentを追加し、対象IDと履歴を維持したまま利用可能な操作を増やせるかを検証する。既存のSemantic Context MVPとは保存先と実装を分ける。
+情報をページ種別ごとに複製せず、Entity と Component の組み合わせで表す。同じ Entity を Task、Calendar、Notes などの View から読み書きする。
 
-- 既存MVP: 外部サービス上の表現、Relation、Evidence、Hypothesisを扱う。
-- ワークスペース試作: 持続的な対象の名前、本文、進捗、実施予定を扱う。
+```text
+Entity + Components + Relations
+              ↓
+             Query
+              ↓
+             View
+```
 
-試作データは`.logos-workspace/workspace.sqlite`へ保存する。既存の`.logos/events.jsonl`は読み書きしない。
+この試作は既存のSemantic Context MVPから分離している。データは`.logos-workspace/workspace.sqlite`へ保存し、旧MVPの`.logos/events.jsonl`は読み書きしない。
 
-## 用語と不変条件
+## Entity と Component
 
-### Entity
+EntityはID、作成・更新日時、revision、アーカイブ状態を持つ。IDは再利用しない。名前はEntity列ではなく、必須の`Name` Componentとして保存する。
 
-Entityは持続的な対象を表す。
+有効な同種ComponentはEntityごとに一つまでとする。Componentを外す操作は論理解除であり、値を保持する。未知のComponentは保持し、UIでは読み取り専用で表示する。
 
-- IDは作成時に割り当て、再利用しない。
-- 名前は一覧と参照に使う最小メタデータとする。
-- 更新ごとにrevisionを1増やす。
-- アーカイブは論理的な状態変更とし、EntityとComponentを削除しない。
-
-### Component
-
-ComponentはEntityに属する機能上の状態を表す。
-
-- キーは`entityId`と`typeId`の組とする。
-- 同じ型の有効なComponentはEntityごとに一つまでとする。
-- `schemaVersion`と検証済みのJSONデータを保存する。
-- 解除時はデータを保持して無効にする。復元時は保存済みデータを使う。
-- 未知の`typeId`は解釈や削除をせず、読み取り結果に残す。
-
-初期型は次の三つとする。
-
-| 型ID | スキーマ版 | データ | 検証 |
-| --- | ---: | --- | --- |
-| `body` | 1 | `{ markdown: string }` | `markdown`が文字列 |
-| `progress` | 1 | `{ status: "todo" | "doing" | "done" }` | 列挙値に一致 |
-| `schedule` | 1 | `{ startUtc, endUtc, timeZone }` | ISO 8601のUTC時刻、開始より後の終了、IANAタイムゾーン |
-
-Scheduleは時刻付きの単発予定だけを表す。終日、繰り返し、複数枠、締め切りは別の意味であるため含めない。
-
-### Command
-
-Commandは更新の唯一の入口とする。各Commandは`operationId`と`actor`を受け取り、既存Entityを変えるCommandは`expectedRevision`も受け取る。
-
-- `operationId`: 同じ操作の再送を識別し、二重適用を防ぐ。
-- `expectedRevision`: 読み取ったrevisionと現在値が一致する場合だけ更新する。
-- `actor`: 操作主体を履歴へ記録する。初期値は`local-user`。
-
-一つのCommandによる現在状態とイベントの保存は、一つのSQLiteトランザクションで行う。注: トランザクションは、複数の書き込みを全適用または全取消にする境界である。
-
-| Command | 必要条件 | 更新 |
+| Component | データ | 役割 |
 | --- | --- | --- |
-| `entity.create` | 重複しない`operationId`、空でない名前 | Entityをrevision 0で作成 |
-| `entity.rename` | Entityが存在しrevision一致 | 名前、revision |
-| `entity.archive` / `entity.restore` | Entityが存在しrevision一致 | アーカイブ状態、revision |
-| `component.add` | 登録済み型、Entityが存在しrevision一致 | 初期データ、有効状態、revision |
-| `component.disable` | 有効なComponent、revision一致 | 無効状態、revision |
-| `component.restore` | 無効なComponent、revision一致 | 有効状態、revision |
-| `component.update` | 有効なComponent、型ごとの検証成功、revision一致 | Componentデータ、revision |
+| `Name` | `{ value: string }` | 全Viewで共有する名前 |
+| `Task` | `{ status: "todo" \| "doing" \| "done" }` | 作業状態 |
+| `Note` | `{ body: string }` | 本文 |
+| `Event` | `{ startUtc, endUtc, timeZone }` | 時刻付きの単発予定 |
+| `Tag` | `{ entityIds: string[] }` | Tag Entityへの参照 |
+| `ThisIsTag` | `{}` | EntityをTagとして識別するmarker |
+| `Estimate` | `{ minutes: number }` | 既存拡張。正の整数の見積時間 |
 
-`component.add`は、存在しない場合は初期値を作り、無効な場合は保存済みデータを復元する。有効な場合は状態を変えず成功する。このため再送以外の二重追加でも有効な同種Componentは増えない。
+`Event`の終了は開始より後でなければならない。終日予定、繰り返し、複数予定枠はまだ扱わない。`Task`、`Note`、`Event`、`Tag`はEntityの固定種別ではなく、Componentが付いているかどうかで決まる。
 
-### Projection
+### Tag
 
-Projectionは保存された状態から画面用の読み取り結果を作り、更新時はCommandを呼ぶ。独自の正本を持たない。
+Tagも通常のEntityであり、`Name + ThisIsTag`を持つ。別Entityの`Tag.entityIds`にそのIDを保存する。割当先は有効な`ThisIsTag`を持つ必要があり、自分自身は指定できない。使用中のTagから`ThisIsTag`を解除することはできない。
 
-- 一覧: 全Entity。名前、Progressの有無、Progress状態で絞り込む。
-- 詳細: Entityと全Component。有効な既知Componentは編集、未知Componentは読み取り専用で表示する。
-- 週カレンダー: 指定範囲と重なる有効なScheduleを持つEntity。Progressがあれば状態も表示する。
+このMVPではTag割当をTag Component内のID配列として扱う。一般的なEntity間の`references` Relationは別機能として保つ。Tag割当そのものに作成者や独立した履歴が必要になった場合は、Relationへ移すかを検討する。
 
-一覧、詳細、週カレンダーは現在状態から毎回作る。保存成功後はServer-Sent Eventsで別画面へ変更を通知し、ブラウザーの画面復帰時にも再取得する。注: Server-Sent Eventsは、HTTP接続を通じてサーバーからブラウザーへ更新を通知する方式である。
+### Relation
 
-## 対象境界の例
+`references`は独立したEntity間の関係として保存する。追加・解除は共通Commandを通し、作成者と操作IDを記録する。Tag割当は現在、Relationではない。
 
-| 事例 | 判断 | 理由 |
-| --- | --- | --- |
-| 勉強会の目的と説明 | 同じEntityのBody | 活動そのものの説明として一緒に扱う |
-| 勉強会の実施日時 | 同じEntityのSchedule | 活動の一回の実施予定として一緒に扱う |
-| 会場を予約する作業 | 別Entityを`references`で接続 | 個別に進捗を持ち、完了できる |
-| 勉強会の議事録 | 別Entityを`references`で接続 | 個別に参照、共有、版管理する |
-| 記事の公開予定 | 記事EntityのSchedule | 記事という対象の実施予定として扱う |
-| 記事執筆から派生した調査 | 別Entityを`references`で接続 | 独立して進捗と説明を持つ |
-| 実施予定と締め切り | 別Component候補 | 同じ日時でも操作と意味が異なる |
+## View
 
-判断基準は、そのデータを対象と常に一緒に扱うか、個別に参照・共有・完了・版管理するかである。
+Viewの`requires`にはComponent型IDを並べる。すべてのComponentを有効な状態で持つEntityだけを返す。Component同士は依存せず、Viewが必要な組み合わせを指定する。
 
-## 既存資産の再利用
+| View | 必須Component |
+| --- | --- |
+| Tasks | `Name + Task` |
+| Calendar | `Name + Event` |
+| Notes | `Name + Note` |
+| Tagged Notes | `Name + Note + Tag` |
+| Tags | `Name + ThisIsTag` |
 
-| 現行資産 | 判断 | 理由 |
-| --- | --- | --- |
-| ID生成と入力検証の考え方 | 再利用 | 対象の同一性と不正入力の拒否は共通する |
-| `src/types.ts`のEntity/Component | 非共有 | 固定Entity種別と外部表現を担い、今回の機能状態と意味が異なる |
-| `LogosKernel` | 非共有 | Relation、Evidence、Hypothesisの操作契約を維持する |
-| `.logos/events.jsonl` | 非共有 | 現在状態と履歴の同一トランザクション保存を提供しない |
-| CLI/HTTPの起動方法 | 入口だけ再利用 | 旧入口を維持し、`workspace serve`を追加できる |
-| ダッシュボードのCSS | 後で判断 | 画面の意味が異なるため、工程2で部品単位に確認する |
+任意のComponentが無いEntityは、その条件のViewに現れない。空値を持つ仮のComponentは作らない。Notes Viewでは`Note`のみの一覧と、`Tag`も必要とする一覧を切り替えられる。
 
-## 工程1の完了範囲
+現在のView定義は同梱コードで固定している。HTTPの`GET /api/workspace/views/:id?require=task`は追加条件をANDで適用する。
 
-工程1では次を通す。
+## UI と更新
 
-1. 空の保存先でEntityを作る。
-2. BodyとScheduleを追加して値を保存する。
-3. Entity IDを変えずにBodyとScheduleを更新する。
-4. Kernelを閉じて開き直し、同じ状態と履歴を読む。
-5. 無効なSchedule、古いrevision、同じ`operationId`の再送を検査する。
+上部にTasks、Calendar、Notesのタブを置く。各一覧の行には有効なComponent数を表示する。数を押すと共通Popoverを開き、同じEntityのName、Task、Note、Event、Tagなどを表示・編集する。常設の詳細欄は置かない。
 
-## 工程2の実装範囲
+UIとHTTPはSQLiteへ直接書き込まず、共通Commandを使う。現在状態とappend-onlyのイベント履歴は一つのSQLiteトランザクションで保存する。revisionで古い更新を拒否し、operationIdで再送を識別する。
 
-工程2では次を通す。
+## SQLite と互換性
 
-1. 三つのComponentの有無による8通りを一覧と詳細から扱う。
-2. Progressの有無と状態、名前で一覧を絞り込む。
-3. Scheduleの日時範囲から週カレンダーを作り、同じEntityの詳細を開く。
-4. Componentを論理的に解除し、保存済みデータから復元する。
-5. 別Entityへの`references`を追加・解除し、作成操作と作成者を保持する。
-6. 別画面の更新を通知し、入力中の競合では入力内容と最新状態を表示する。
-7. 未知Componentを読み取り専用で表示し、既知Componentの更新時にも保持する。
+SQLiteには`entities`、`components`、`relations`、`events`表を置く。`entities`には同一性と更新情報を置き、Nameなどの意味上の状態は`components`に置く。
 
-履歴画面、エクスポート、イベントからの再構築は工程4で扱う。カレンダーのドラッグ操作は、フォームによる日時変更の利用確認後に判断する。
+旧スキーマを開くとき、`entities.name`をName Componentへ移す。可能な場合は旧Body、Progress、ScheduleをNote、Task、Eventへ変換し、旧列を削除する。旧MVPの`.logos/events.jsonl`は対象外。
 
-## 工程3の実装範囲
+エクスポート形式は`logos.workspace` version 2。version 1の復元では`entities[].name`とBody / Progress / Scheduleを新Componentへ移す。version 2は古いComponent IDを勝手に書き換えない。
 
-工程3ではComponent定義を登録簿へ分離し、四つ目の`estimate`を追加する。Estimateは正の整数の分数を保存し、見積時間一覧では有効なEstimateを持つEntityと合計分数を表示する。
+## 実装範囲と未決事項
 
-Estimate追加ではKernel、SQLiteの表、Body、Progress、Scheduleの定義を変更しない。登録方法は[workspace-features.md](workspace-features.md)に記録する。
+- 一つのEntityに同じ型のComponentを複数付ける機能はない。
+- View定義はコード内にあり、利用者が保存・編集する機能はない。
+- Tag割当は値の一部として保存するため、割当ごとの履歴や属性を持たない。
+- `ThisIsTag`はデータを持たないmarker Componentである。
+- 既存のBody / Progress / Schedule Component定義は互換性のため登録簿に残る。新しい画面のView定義はNote / Task / Eventを使う。
+
+Componentの粒度、Tag割当をRelationへ移す条件、利用者定義Viewの要否は、利用状況に基づいて決める。

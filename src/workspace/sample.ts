@@ -1,9 +1,7 @@
 import type { ComponentRegistry } from "./features";
 import { WORKSPACE_EVENT_ENTITY_ID } from "./types";
 import type {
-  BodyData,
-  ProgressData,
-  ScheduleData,
+  EventData,
   WorkspaceComponent,
   WorkspaceEntity,
   WorkspaceEvent,
@@ -49,7 +47,7 @@ function event(
   };
 }
 
-function schedule(base: Date, offsetDays: number, durationMinutes: number): ScheduleData {
+function eventData(base: Date, offsetDays: number, durationMinutes: number): EventData {
   const start = new Date(base.getTime());
   start.setUTCDate(start.getUTCDate() + offsetDays);
   start.setUTCHours(9, 0, 0, 0);
@@ -76,11 +74,20 @@ export function buildWorkspaceSample(
     const at = timestamp();
     const entity: WorkspaceEntity = {
       id: identifier("went"),
-      name,
       createdAt: at,
       updatedAt: at,
       revision: 0,
     };
+    const definition = componentRegistry.get<{ value: string }>("name");
+    components.push({
+      entityId: entity.id,
+      typeId: "name",
+      schemaVersion: definition.schemaVersion,
+      data: definition.validate({ value: name }),
+      active: true,
+      createdAt: at,
+      updatedAt: at,
+    });
     entities.push(entity);
     events.push(event(
       operationId(rootOperationId, `${suffix}:create`),
@@ -88,7 +95,7 @@ export function buildWorkspaceSample(
       "entity.create",
       -1,
       0,
-      { entity },
+      { entityId: entity.id, initialComponentIds: ["name"] },
       actor,
       at,
     ));
@@ -135,28 +142,18 @@ export function buildWorkspaceSample(
   };
 
   let meeting = createEntity("勉強会を開催する", "meeting");
-  meeting = addComponent<BodyData>(
-    meeting,
-    "body",
-    {
-      markdown: "# 勉強会を開催する\n\n目的と内容を共有する。",
-    },
-    "meeting",
-  );
-  meeting = addComponent<ProgressData>(meeting, "progress", { status: "done" }, "meeting");
-  meeting = addComponent<ScheduleData>(meeting, "schedule", schedule(base, 1, 90), "meeting");
+  meeting = addComponent(meeting, "note", { body: "目的と内容を共有する。" }, "meeting");
+  meeting = addComponent(meeting, "task", { status: "done" }, "meeting");
+  meeting = addComponent(meeting, "event", eventData(base, 1, 90), "meeting");
 
   let article = createEntity("記事を書く", "article");
-  article = addComponent<BodyData>(
-    article,
-    "body",
-    {
-      markdown: "# 記事を書く\n\n勉強会で得た知見を一般化してまとめる。",
-    },
-    "article",
-  );
-  article = addComponent<ProgressData>(article, "progress", { status: "doing" }, "article");
-  article = addComponent<ScheduleData>(article, "schedule", schedule(base, 2, 60), "article");
+  article = addComponent(article, "note", { body: "勉強会で得た知見を一般化してまとめる。" }, "article");
+  article = addComponent(article, "task", { status: "doing" }, "article");
+  article = addComponent(article, "event", eventData(base, 2, 60), "article");
+
+  const tag = createEntity("設計", "tag");
+  addComponent(tag, "this-is-tag", {}, "tag");
+  article = addComponent(article, "tag", { entityIds: [tag.id] }, "article");
 
   const at = timestamp();
   events.push(event(
@@ -166,7 +163,7 @@ export function buildWorkspaceSample(
     -1,
     -1,
     {
-      sampleVersion: 1,
+      sampleVersion: 2,
       entityIds: entities.map((entity) => entity.id),
       entityCount: entities.length,
       componentCount: components.length,

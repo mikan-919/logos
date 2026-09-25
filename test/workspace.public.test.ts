@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceHttpApp } from "../src/workspace/http";
@@ -23,6 +23,137 @@ afterEach(async () => {
 });
 
 describe("functional workspace kernel", () => {
+  test("builds Task, Note, Calendar, and Tag views from shared components", async () => {
+    const kernel = await WorkspaceKernel.open(await workspace());
+    const tag = kernel.createEntity("設計", { operationId: "create-tag" }, [
+      { typeId: "this-is-tag", data: {} },
+    ]);
+    const shared = kernel.createEntity("同じEntity", { operationId: "create-shared" }, [
+      { typeId: "task", data: { status: "doing" } },
+      { typeId: "note", data: { body: "共有する本文" } },
+      {
+        typeId: "event",
+        data: {
+          startUtc: "2026-09-10T09:00:00Z",
+          endUtc: "2026-09-10T10:00:00Z",
+          timeZone: "Asia/Tokyo",
+        },
+      },
+      { typeId: "tag", data: { entityIds: [tag.id] } },
+    ]);
+    const noteWithoutTag = kernel.createEntity("Tagなし", { operationId: "create-untagged" }, [
+      { typeId: "note", data: { body: "本文" } },
+    ]);
+
+    expect(kernel.view("tasks")?.entities.map((entity) => entity.id)).toContain(shared.id);
+    expect(kernel.view("calendar")?.entities.map((entity) => entity.id)).toContain(shared.id);
+    expect(kernel.calendar("2026-09-10T00:00:00Z", "2026-09-11T00:00:00Z")).toMatchObject([
+      { entity: { id: shared.id }, event: { typeId: "event" }, task: { typeId: "task" } },
+    ]);
+    expect(kernel.view("notes")?.entities.map((entity) => entity.id)).toEqual(
+      expect.arrayContaining([shared.id, noteWithoutTag.id]),
+    );
+    expect(kernel.view("tagged-notes")?.entities.map((entity) => entity.id)).toEqual([shared.id]);
+    expect(kernel.view("notes", ["task"])?.entities.map((entity) => entity.id)).toEqual([shared.id]);
+    expect(kernel.view("tags")?.entities.map((entity) => entity.id)).toEqual([tag.id]);
+    expect(() => kernel.createEntity("不正なTag割当", { operationId: "create-invalid-tag" }, [
+      { typeId: "tag", data: { entityIds: ["missing-tag"] } },
+    ])).toThrow("Unknown Tag entity");
+    expect(() => kernel.disableComponent(tag.id, "this-is-tag", {
+      operationId: "disable-assigned-tag",
+      expectedRevision: tag.revision,
+    })).toThrow("This entity is used as a Tag");
+    kernel.close();
+  });
+
+  test("migrates version 1 backup names and components", async () => {
+    const at = "2026-09-01T00:00:00.000Z";
+    const legacyExport = {
+      format: "logos.workspace",
+      version: 1,
+      exportedAt: at,
+      entities: [{ id: "legacy-entity", name: "旧形式", createdAt: at, updatedAt: at, revision: 3 }],
+      components: [
+        { entityId: "legacy-entity", typeId: "body", schemaVersion: 1, data: { markdown: "本文" }, active: true, createdAt: at, updatedAt: at },
+        { entityId: "legacy-entity", typeId: "progress", schemaVersion: 1, data: { status: "doing" }, active: true, createdAt: at, updatedAt: at },
+        { entityId: "legacy-entity", typeId: "schedule", schemaVersion: 1, data: { startUtc: "2026-09-10T09:00:00Z", endUtc: "2026-09-10T10:00:00Z", timeZone: "UTC" }, active: true, createdAt: at, updatedAt: at },
+      ],
+      relations: [],
+      events: [],
+    };
+    const restored = await WorkspaceKernel.restoreFromExport(
+      await workspace(),
+      legacyExport,
+      { operationId: "restore-legacy-export" },
+    );
+    expect(restored.get("legacy-entity")).toMatchObject({
+      name: "旧形式",
+      components: expect.arrayContaining([
+        expect.objectContaining({ typeId: "name", data: { value: "旧形式" } }),
+        expect.objectContaining({ typeId: "note", data: { body: "本文" } }),
+        expect.objectContaining({ typeId: "task", data: { status: "doing" } }),
+        expect.objectContaining({ typeId: "event" }),
+      ]),
+    });
+    restored.close();
+  });
+
+  test("migrates the existing SQLite schema and preserves its current state", async () => {
+    const root = await workspace();
+    const databaseDirectory = join(root, ".logos-workspace");
+    const databasePath = join(databaseDirectory, "workspace.sqlite");
+    await mkdir(databaseDirectory, { recursive: true });
+    const database = new Database(databasePath);
+    database.exec(`
+      CREATE TABLE entities (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL, revision INTEGER NOT NULL, archived_at TEXT
+      );
+      CREATE TABLE components (
+        entity_id TEXT NOT NULL REFERENCES entities(id), type_id TEXT NOT NULL,
+        schema_version INTEGER NOT NULL, data_json TEXT NOT NULL, active INTEGER NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, disabled_at TEXT,
+        PRIMARY KEY (entity_id, type_id)
+      );
+      CREATE TABLE events (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
+        schema_version INTEGER NOT NULL, operation_id TEXT NOT NULL UNIQUE,
+        entity_id TEXT NOT NULL, command TEXT NOT NULL, before_revision INTEGER NOT NULL,
+        after_revision INTEGER NOT NULL, changes_json TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL
+      );
+      CREATE TABLE relations (
+        id TEXT PRIMARY KEY, from_entity_id TEXT NOT NULL REFERENCES entities(id),
+        to_entity_id TEXT NOT NULL REFERENCES entities(id), type TEXT NOT NULL,
+        active INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        created_by TEXT NOT NULL, created_operation_id TEXT NOT NULL, removed_at TEXT,
+        UNIQUE (from_entity_id, to_entity_id, type)
+      );
+      INSERT INTO entities VALUES ('legacy-db-entity', '旧DB', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', 1, NULL);
+      INSERT INTO components VALUES ('legacy-db-entity', 'body', 1, '{"markdown":"DB本文"}', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', NULL);
+      INSERT INTO components VALUES ('legacy-db-entity', 'progress', 1, '{"status":"todo"}', 1, '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', NULL);
+      INSERT INTO events VALUES (1, 'legacy-db-event', 1, 'legacy-db-create', 'legacy-db-entity', 'entity.create', -1, 0, '{}', 'tester', '2026-09-01T00:00:00.000Z');
+      PRAGMA user_version = 1;
+    `);
+    database.close();
+
+    const migrated = await WorkspaceKernel.open(root);
+    expect(migrated.get("legacy-db-entity")).toMatchObject({
+      name: "旧DB",
+      components: expect.arrayContaining([
+        expect.objectContaining({ typeId: "name", data: { value: "旧DB" } }),
+        expect.objectContaining({ typeId: "note", data: { body: "DB本文" } }),
+        expect.objectContaining({ typeId: "task", data: { status: "todo" } }),
+      ]),
+    });
+    expect(migrated.history("legacy-db-entity")).toHaveLength(1);
+    migrated.close();
+
+    const migratedDatabase = new Database(databasePath);
+    expect(migratedDatabase.query<{ name: string }, []>("PRAGMA table_info(entities)").all().some((column) => column.name === "name")).toBe(false);
+    expect(migratedDatabase.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(2);
+    migratedDatabase.close();
+  });
+
   test("keeps one entity ID while body and schedule are added, updated, and reloaded", async () => {
     const root = await workspace();
     const kernel = await WorkspaceKernel.open(root);
@@ -81,12 +212,14 @@ describe("functional workspace kernel", () => {
     expect(loaded.entities.map((entity) => entity.name)).toEqual([
       "勉強会を開催する",
       "記事を書く",
+      "設計",
     ]);
-    expect(loaded.entities.every((entity) => entity.components.length === 3)).toBe(true);
+    expect(loaded.entities[0]?.components).toHaveLength(4);
     expect(loaded.entities[0]?.components).toEqual(expect.arrayContaining([
-      expect.objectContaining({ typeId: "body", active: true }),
-      expect.objectContaining({ typeId: "progress", data: { status: "done" } }),
-      expect.objectContaining({ typeId: "schedule", active: true }),
+      expect.objectContaining({ typeId: "name", data: { value: "勉強会を開催する" } }),
+      expect.objectContaining({ typeId: "note", active: true }),
+      expect.objectContaining({ typeId: "task", data: { status: "done" } }),
+      expect.objectContaining({ typeId: "event", active: true }),
     ]));
     expect(kernel.history(loaded.entities[0]!.id).map((event) => event.command)).toEqual([
       "entity.create",
@@ -107,7 +240,7 @@ describe("functional workspace kernel", () => {
     const replayed = kernel.seedSample({ operationId: "sample-load", actor: "another-user" });
     expect(replayed.replayed).toBe(true);
     expect(replayed.entities).toEqual(firstState);
-    expect(kernel.list()).toHaveLength(2);
+    expect(kernel.list()).toHaveLength(3);
     expect(kernel.history().filter((event) => event.command === "workspace.sample")).toHaveLength(1);
     kernel.close();
   });
@@ -165,7 +298,8 @@ describe("functional workspace kernel", () => {
       ),
     ).toThrow(WorkspaceValidationError);
     expect(kernel.get(entity.id)?.revision).toBe(0);
-    expect(kernel.get(entity.id)?.components).toHaveLength(0);
+    expect(kernel.get(entity.id)?.components).toHaveLength(1);
+    expect(kernel.get(entity.id)?.components[0]).toMatchObject({ typeId: "name", active: true });
     expect(kernel.history(entity.id)).toHaveLength(1);
     kernel.close();
   });
@@ -212,12 +346,12 @@ describe("functional workspace kernel", () => {
       operationId: "disable-progress",
       expectedRevision: added.revision,
     });
-    expect(disabled.components[0]).toMatchObject({ active: false, data: { status: "doing" } });
+    expect(disabled.components.find((component) => component.typeId === "progress")).toMatchObject({ active: false, data: { status: "doing" } });
     const restored = kernel.restoreComponent(entity.id, "progress", {
       operationId: "restore-progress",
       expectedRevision: disabled.revision,
     });
-    expect(restored.components[0]).toMatchObject({ active: true, data: { status: "doing" } });
+    expect(restored.components.find((component) => component.typeId === "progress")).toMatchObject({ active: true, data: { status: "doing" } });
     kernel.close();
   });
 
@@ -228,24 +362,24 @@ describe("functional workspace kernel", () => {
       if (mask & 1) {
         entity = kernel.addComponent(
           entity.id,
-          "body",
-          { operationId: `body-${mask}`, expectedRevision: entity.revision },
-          { markdown: `本文${mask}` },
+          "note",
+          { operationId: `note-${mask}`, expectedRevision: entity.revision },
+          { body: `本文${mask}` },
         );
       }
       if (mask & 2) {
         entity = kernel.addComponent(
           entity.id,
-          "progress",
-          { operationId: `progress-${mask}`, expectedRevision: entity.revision },
+          "task",
+          { operationId: `task-${mask}`, expectedRevision: entity.revision },
           { status: "doing" },
         );
       }
       if (mask & 4) {
         entity = kernel.addComponent(
           entity.id,
-          "schedule",
-          { operationId: `schedule-${mask}`, expectedRevision: entity.revision },
+          "event",
+          { operationId: `event-${mask}`, expectedRevision: entity.revision },
           {
             startUtc: `2026-09-1${mask}T09:00:00Z`,
             endUtc: `2026-09-1${mask}T10:00:00Z`,
@@ -308,13 +442,13 @@ describe("functional workspace kernel", () => {
     reopened.close();
   });
 
-  test("calendar reads active schedules and does not require progress", async () => {
+  test("calendar reads active Events and does not require a Task", async () => {
     const kernel = await WorkspaceKernel.open(await workspace());
     let scheduled = kernel.createEntity("予定だけの対象", { operationId: "create-scheduled" });
     scheduled = kernel.addComponent(
       scheduled.id,
-      "schedule",
-      { operationId: "add-schedule", expectedRevision: scheduled.revision },
+      "event",
+      { operationId: "add-event", expectedRevision: scheduled.revision },
       {
         startUtc: "2026-09-08T23:00:00Z",
         endUtc: "2026-09-09T00:00:00Z",
@@ -323,9 +457,9 @@ describe("functional workspace kernel", () => {
     );
     const entry = kernel.calendar("2026-09-08T00:00:00Z", "2026-09-10T00:00:00Z")[0];
     expect(entry?.entity.id).toBe(scheduled.id);
-    expect(entry?.progress).toBeUndefined();
-    kernel.disableComponent(scheduled.id, "schedule", {
-      operationId: "disable-schedule",
+    expect(entry?.task).toBeUndefined();
+    kernel.disableComponent(scheduled.id, "event", {
+      operationId: "disable-event",
       expectedRevision: scheduled.revision,
     });
     expect(kernel.calendar("2026-09-08T00:00:00Z", "2026-09-10T00:00:00Z")).toEqual([]);
@@ -358,7 +492,10 @@ describe("functional workspace kernel", () => {
         { markdown: "保存されない本文" },
       ),
     ).toThrow("forced event failure");
-    expect(kernel.get(entity.id)).toMatchObject({ revision: 0, components: [] });
+    expect(kernel.get(entity.id)).toMatchObject({
+      revision: 0,
+      components: [expect.objectContaining({ typeId: "name", data: { value: "原子的保存" } })],
+    });
     expect(kernel.history(entity.id)).toHaveLength(1);
     kernel.close();
   });
@@ -417,7 +554,10 @@ describe("functional workspace kernel", () => {
     expect(kernel.list({ includeArchived: true })[0]).toMatchObject({
       id: entity.id,
       name: "変更後",
-      components: [expect.objectContaining({ data: { markdown: "保持する本文" } })],
+      components: expect.arrayContaining([
+        expect.objectContaining({ typeId: "name", data: { value: "変更後" } }),
+        expect.objectContaining({ typeId: "body", data: { markdown: "保持する本文" } }),
+      ]),
     });
     const restored = kernel.restoreEntity(entity.id, {
       operationId: "restore",
@@ -472,7 +612,7 @@ describe("functional workspace kernel", () => {
     sourceEntity = kernel.get(activity.id);
     const snapshot = kernel.exportWorkspace();
     expect(snapshot.format).toBe("logos.workspace");
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.version).toBe(2);
     expect(snapshot.entities.some((entity) => entity.id === activity.id)).toBe(true);
     expect(snapshot.events.map((event) => event.operationId)).toEqual(
       ["create-activity", "create-task", "add-body", "add-progress", "add-reference", "remove-reference"],
@@ -608,7 +748,10 @@ describe("functional workspace HTTP surface", () => {
           id: entity.id,
           name: "記事を書く",
           revision: 1,
-          components: [{ typeId: "body", active: true, data: { markdown: "本文" } }],
+          components: expect.arrayContaining([
+            expect.objectContaining({ typeId: "name", active: true, data: { value: "記事を書く" } }),
+            expect.objectContaining({ typeId: "body", active: true, data: { markdown: "本文" } }),
+          ]),
         },
       ],
     });
@@ -623,7 +766,7 @@ describe("functional workspace HTTP surface", () => {
     });
     const exported = await app(new Request("http://logos.local/api/workspace/export"));
     const backup = await exported.json();
-    expect(backup).toMatchObject({ format: "logos.workspace", version: 1 });
+    expect(backup).toMatchObject({ format: "logos.workspace", version: 2 });
     const allHistory = await app(new Request("http://logos.local/api/workspace/history"));
     const allHistoryValue = await allHistory.json() as { events: Array<{ operationId: string }> };
     expect(allHistoryValue.events[0]).toMatchObject({ operationId: "http-create" });
@@ -665,7 +808,7 @@ describe("functional workspace HTTP surface", () => {
       replayed: boolean;
     };
     expect(firstValue.replayed).toBe(false);
-    expect(firstValue.entities).toHaveLength(2);
+    expect(firstValue.entities).toHaveLength(3);
 
     const retry = await app(new Request("http://logos.local/api/workspace/sample", {
       method: "POST",
@@ -683,9 +826,10 @@ describe("functional workspace HTTP surface", () => {
     const snapshot = await exported.json();
     const restoreSnapshot = structuredClone(snapshot);
     expect(snapshot).toMatchObject({
-      entities: expect.arrayContaining([
-        expect.objectContaining({ name: "勉強会を開催する" }),
-        expect.objectContaining({ name: "記事を書く" }),
+      components: expect.arrayContaining([
+        expect.objectContaining({ typeId: "name", data: { value: "勉強会を開催する" } }),
+        expect.objectContaining({ typeId: "name", data: { value: "記事を書く" } }),
+        expect.objectContaining({ typeId: "this-is-tag" }),
       ]),
       events: expect.arrayContaining([
         expect.objectContaining({ operationId: "http-sample", command: "workspace.sample" }),
@@ -695,9 +839,36 @@ describe("functional workspace HTTP surface", () => {
     const restored = await WorkspaceKernel.restoreFromExport(destination, restoreSnapshot, {
       operationId: "http-sample-restore",
     });
-    expect(restored.list()).toHaveLength(2);
+    expect(restored.list()).toHaveLength(3);
     expect(restored.history().some((event) => event.command === "workspace.sample")).toBe(true);
     restored.close();
+  });
+
+  test("exposes declared view requirements and extra query requirements over HTTP", async () => {
+    const root = await workspace();
+    const kernel = await WorkspaceKernel.open(root);
+    const entity = kernel.createEntity("Note兼Task", { operationId: "create-note-task" }, [
+      { typeId: "note", data: { body: "本文" } },
+      { typeId: "task", data: { status: "todo" } },
+    ]);
+    kernel.createEntity("Noteのみ", { operationId: "create-note-only" }, [
+      { typeId: "note", data: { body: "別の本文" } },
+    ]);
+    kernel.close();
+
+    const app = createWorkspaceHttpApp(root);
+    const definitions = await app(new Request("http://logos.local/api/workspace/views"));
+    expect(await definitions.json()).toMatchObject({
+      views: expect.arrayContaining([
+        expect.objectContaining({ id: "tasks", requires: ["name", "task"] }),
+        expect.objectContaining({ id: "notes", requires: ["name", "note"] }),
+      ]),
+    });
+    const filtered = await app(new Request("http://logos.local/api/workspace/views/notes?require=task"));
+    expect(await filtered.json()).toMatchObject({
+      definition: { id: "notes" },
+      entities: [{ id: entity.id }],
+    });
   });
 
   test("returns the current entity with a conflict response", async () => {
@@ -736,8 +907,8 @@ describe("functional workspace HTTP surface", () => {
     const task = kernel.createEntity("会場予約", { operationId: "create-task" });
     activity = kernel.addComponent(
       activity.id,
-      "schedule",
-      { operationId: "add-schedule", expectedRevision: activity.revision },
+      "event",
+      { operationId: "add-event", expectedRevision: activity.revision },
       {
         startUtc: "2026-09-09T09:00:00Z",
         endUtc: "2026-09-09T10:00:00Z",
@@ -750,7 +921,9 @@ describe("functional workspace HTTP surface", () => {
     const calendar = await app(new Request(
       "http://logos.local/api/workspace/calendar?startUtc=2026-09-09T00%3A00%3A00Z&endUtc=2026-09-10T00%3A00%3A00Z",
     ));
-    expect(await calendar.json()).toMatchObject({ entries: [{ entity: { id: activity.id } }] });
+    expect(await calendar.json()).toMatchObject({
+      entries: [{ entity: { id: activity.id }, event: { typeId: "event" } }],
+    });
     const addReference = await app(new Request(
       `http://logos.local/api/workspace/entities/${activity.id}/references`,
       {
@@ -772,15 +945,15 @@ describe("functional workspace HTTP surface", () => {
       "http://logos.local/api/workspace/entities?name=%E4%BC%9A%E5%A0%B4",
     ));
     expect(await filtered.json()).toMatchObject({ entities: [{ id: task.id }] });
-    const removeSchedule = await app(new Request(
-      `http://logos.local/api/workspace/entities/${activity.id}/components/schedule`,
+    const removeEvent = await app(new Request(
+      `http://logos.local/api/workspace/entities/${activity.id}/components/event`,
       {
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ operationId: "http-disable", expectedRevision: activity.revision + 1 }),
       },
     ));
-    expect(removeSchedule.status).toBe(200);
+    expect(removeEvent.status).toBe(200);
     const emptyCalendar = await app(new Request(
       "http://logos.local/api/workspace/calendar?startUtc=2026-09-09T00%3A00%3A00Z&endUtc=2026-09-10T00%3A00%3A00Z",
     ));
@@ -809,15 +982,17 @@ describe("functional workspace HTTP surface", () => {
     const response = await app(new Request("http://logos.local/"));
     expect(response.headers.get("content-type")).toContain("text/html");
     const html = await response.text();
-    expect(html).toContain("対象一覧");
-    expect(html).toContain("週カレンダー");
-    expect(html).toContain("見積時間一覧");
-    expect(html).toContain("保存した値を復元");
-    expect(html).toContain("未対応のComponent");
+    expect(html).toContain("Tasks");
+    expect(html).toContain("Calendar");
+    expect(html).toContain("Notes");
+    expect(html).toContain("components");
+    expect(html).toContain("<dialog id=\"component-popover\"");
+    expect(html).toContain("Name + Note + Tag");
+    expect(html).toContain("未対応Component");
     expect(html).toContain("履歴");
     expect(html).toContain("エクスポート");
     expect(html).toContain("復元ファイル");
-    expect(html).toContain("サンプルデータを読み込む");
+    expect(html).toContain("サンプルを読み込む");
     expect(html).toContain("/api/workspace/sample");
     const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
     expect(script).toBeDefined();

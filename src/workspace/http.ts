@@ -3,6 +3,7 @@ import {
   WorkspaceKernel,
   WorkspaceValidationError,
 } from "./kernel";
+import type { CreateComponentInput } from "./kernel";
 import { workspacePage } from "./ui";
 import { estimateProjection } from "./projections/estimate";
 
@@ -18,6 +19,7 @@ interface CommandBody {
   backup?: unknown;
   action?: "rename" | "archive" | "restore";
   targetEntityId?: string;
+  components?: unknown;
 }
 
 async function body(request: Request): Promise<CommandBody> {
@@ -45,6 +47,21 @@ function expectedRevision(value: number | undefined): number {
     throw new WorkspaceValidationError("expectedRevision must be a non-negative integer");
   }
   return value;
+}
+
+function createComponents(value: unknown): CreateComponentInput[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new WorkspaceValidationError("components must be an array");
+  return value.map((item, index) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new WorkspaceValidationError(`components[${index}] must be an object`);
+    }
+    const component = item as Record<string, unknown>;
+    if (typeof component.typeId !== "string" || !component.typeId.trim()) {
+      throw new WorkspaceValidationError(`components[${index}].typeId is required`);
+    }
+    return { typeId: component.typeId, data: component.data };
+  });
 }
 
 export function createWorkspaceHttpApp(workspace: string): (request: Request) => Promise<Response> {
@@ -102,6 +119,17 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
           }),
         });
       }
+      if (request.method === "GET" && url.pathname === "/api/workspace/views") {
+        return json({ views: kernel.viewDefinitions() });
+      }
+      const viewMatch = url.pathname.match(/^\/api\/workspace\/views\/([^/]+)$/);
+      if (viewMatch && request.method === "GET") {
+        const result = kernel.view(
+          decodeURIComponent(viewMatch[1]!),
+          url.searchParams.getAll("require").filter((typeId) => typeId.trim()),
+        );
+        return result ? json(result) : json({ error: "View not found" }, 404);
+      }
       if (request.method === "POST" && url.pathname === "/api/workspace/sample") {
         const input = await body(request);
         const result = kernel.seedSample({
@@ -113,7 +141,11 @@ export function createWorkspaceHttpApp(workspace: string): (request: Request) =>
       }
       if (request.method === "POST" && url.pathname === "/api/workspace/entities") {
         const input = await body(request);
-        const entity = kernel.createEntity(input.name ?? "", { operationId: operationId(input.operationId) });
+        const entity = kernel.createEntity(
+          input.name ?? "",
+          { operationId: operationId(input.operationId) },
+          createComponents(input.components),
+        );
         notify(entity.id);
         return json(entity, 201);
       }
