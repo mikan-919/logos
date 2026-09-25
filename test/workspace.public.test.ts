@@ -1040,7 +1040,8 @@ describe("functional workspace HTTP surface", () => {
     expect(html).toContain("role=\"tablist\"");
     expect(html).toContain("renderListPane(type)");
     expect(html).toContain("renderCalendar(selected)");
-    expect(html).toContain("component-count");
+    expect(html).not.toContain("component-count");
+    expect(html).toContain("activeComponents(entity).length + ' components</button>'");
     expect(html).toContain(".component-popover");
     expect(html).toContain("tagged-notes");
     expect(html).toContain("未対応Component");

@@ -52,7 +52,6 @@ header { position: sticky; top: 0; z-index: 50; height: var(--header); display: 
 .list-filters { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .list-filters select { min-width: 0; width: 100%; border: 0; border-radius: 6px; background: var(--surface); padding: 6px 8px; }
 .list { min-height: 0; overflow: auto; padding: 6px; }
-.list-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px; }
 .list-item { width: 100%; text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 10px; display: grid; gap: 4px; }
 .list-item:hover { background: var(--surface); }
 .list-item.active { background: var(--surface-2); }
@@ -293,14 +292,11 @@ header { position: sticky; top: 0; z-index: 50; height: var(--header); display: 
       const note = component(entity, 'note');
       meta = note && note.data.body ? note.data.body.replace(/\\n/g, ' ') : '本文なし';
     }
-    return '<div class="list-row"><button class="list-item' + (entity.id === state.selectedId ? ' active' : '') +
+    return '<button class="list-item' + (entity.id === state.selectedId ? ' active' : '') +
       '" data-select="' + escapeHtml(entity.id) + '" aria-pressed="' + String(entity.id === state.selectedId) + '">' +
       '<span class="list-item-row"><span class="list-item-title">' + escapeHtml(name || '無題') + '</span>' +
       (state.changedId === entity.id ? '<span class="dot changed" aria-label="更新済み"></span>' : '<span class="dot" hidden></span>') +
-      '</span><span class="meta">' + escapeHtml(meta) + (entity.archivedAt ? ' · アーカイブ' : '') + '</span></button>' +
-      '<button class="status-chip component-trigger component-count" data-components="' + escapeHtml(entity.id) + '" data-primary="' +
-      primaryType() + '" aria-haspopup="dialog" aria-expanded="false" aria-label="' + escapeHtml(name || '無題') + 'のComponentを編集">' +
-      activeComponents(entity).length + ' components</button></div>';
+      '</span><span class="meta">' + escapeHtml(meta) + (entity.archivedAt ? ' · アーカイブ' : '') + '</span></button>';
   }
 
   function renderEditor(entity, type) {
@@ -462,10 +458,7 @@ header { position: sticky; top: 0; z-index: 50; height: var(--header); display: 
   }
   function refreshListItems() {
     const list = byId('entity-list');
-    if (list) {
-      list.innerHTML = viewEntities.map((entity) => renderListItem(entity, primaryType())).join('');
-      bindComponentTriggers(list);
-    }
+    if (list) list.innerHTML = viewEntities.map((entity) => renderListItem(entity, primaryType())).join('');
     bindList();
   }
 

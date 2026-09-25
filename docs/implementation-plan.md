@@ -13,7 +13,7 @@ NotionやObsidianのような情報管理を、ページ種別ではなくEntity
 1. `Name`が共有Componentであり、Entityの必須情報として保存される。
 2. `Task`、`Note`、`Event`を同じEntityへ付け、各Viewから同じIDを取得できる。
 3. Viewは必要なComponentのAND条件で定義する。Notesでは`Name + Note`と`Name + Note + Tag`を試せる。
-4. 一覧のComponent数から共通Popoverを開き、他Componentを編集できる。
+4. 編集欄のComponent数から共通Popoverを開き、他Componentを編集できる。
 5. Tagは`Name + ThisIsTag`を持つEntityとし、Tag ComponentからそのIDを参照できる。
 6. SQLiteの現在状態、履歴、再起動後の状態が整合し、旧ワークスペースとversion 1バックアップを移行できる。
 

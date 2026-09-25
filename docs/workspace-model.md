@@ -62,7 +62,7 @@ Viewの`requires`にはComponent型IDを並べる。すべてのComponentを有�
 
 ## UI と更新
 
-上部にTask、Calendar、Noteのタブを置く。画面は一覧と編集欄に分け、選択したEntityの主Componentを編集する。一覧の各Entityには有効なComponent数を表示するボタンを置き、共通Popoverを開いてNameや他のComponentを表示・編集できる。Calendarでは月表示と予定の編集欄を使う。Note一覧にはTag付きEntityだけに絞る条件を置く。
+上部にTask、Calendar、Noteのタブを置く。画面は一覧と編集欄に分け、選択したEntityの主Componentを編集する。編集欄のComponent数ボタンから共通Popoverを開き、Nameや他のComponentを表示・編集できる。Calendarでは月表示と予定の編集欄を使う。Note一覧にはTag付きEntityだけに絞る条件を置く。
 
 UIとHTTPはSQLiteへ直接書き込まず、共通Commandを使う。現在状態とappend-onlyのイベント履歴は一つのSQLiteトランザクションで保存する。revisionで古い更新を拒否し、operationIdで再送を識別する。
 
