@@ -1,15 +1,15 @@
-import { PGlite } from "@electric-sql/pglite";
 import { expect, test, vi } from "vite-plus/test";
-import { Kysely, PGliteDialect } from "kysely";
-import { up } from "../../../packages/db/src/migrations/20260926_initial.ts";
-import { createTagmemoApp } from "../src/app.ts";
 import { createTag, deleteMemo, loadData, saveMemo } from "../src/data.js";
+import { setup } from "./helpers.ts";
 
 test("タグを付けたメモを API 経由で保存・取得・削除できる", async () => {
-  const db = new Kysely({ dialect: new PGliteDialect({ pglite: new PGlite() }) });
-  await up(db);
-  const app = createTagmemoApp(db, "00000000-0000-4000-8000-000000000001");
-  vi.stubGlobal("fetch", (path, options) => app.request(path, options));
+  const { db, app, cookie, origin } = await setup();
+  vi.stubGlobal("fetch", (path, options = {}) =>
+    app.request(`${origin}${path}`, {
+      ...options,
+      headers: { ...options.headers, Cookie: cookie },
+    }),
+  );
   try {
     await loadData();
     const tagId = await createTag("研究");

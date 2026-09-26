@@ -46,11 +46,23 @@ export function refs(value: JsonObject): string[] {
   return ids.sort();
 }
 
-export function revision(value: unknown): string {
+export function revision(value: unknown): number {
   if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) {
     invalid("revision は正の整数の文字列にしてください");
   }
-  return value;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) invalid("revision は安全な整数にしてください");
+  return parsed;
+}
+
+export function parseJson(value: string): JsonObject {
+  const parsed: unknown = JSON.parse(value);
+  if (!isObject(parsed)) throw new Error("保存された JSON が不正です");
+  return parsed;
+}
+
+export function serializeType<T extends { schema: string }>(type: T) {
+  return { ...type, schema: parseJson(type.schema) };
 }
 
 export function permission(value: unknown): PermissionKey {
@@ -94,7 +106,6 @@ export async function lockEntity(db: Kysely<Database>, id: string): Promise<void
     .selectFrom("entities")
     .select("id")
     .where("id", "=", id)
-    .forKeyShare()
     .executeTakeFirst();
   if (!entity) throw new HTTPException(404, { message: "Entity が見つかりません" });
 }
@@ -110,7 +121,7 @@ export async function validateValue(
     .where("key", "=", typeKey)
     .executeTakeFirst();
   if (!type) throw new HTTPException(404, { message: "Component 型が見つかりません" });
-  const validate = ajv.compile(type.schema);
+  const validate = ajv.compile(parseJson(type.schema));
   if (!validate(value)) {
     throw new HTTPException(422, { message: ajv.errorsText(validate.errors) });
   }
@@ -126,7 +137,6 @@ export async function lockReferences(
       .selectFrom("entities")
       .select("id")
       .where("id", "=", targetId)
-      .forKeyShare()
       .executeTakeFirst();
     if (!target || !(await hasPermission(db, targetId, userId, "read"))) {
       throw new HTTPException(422, { message: "参照先の Entity を利用できません" });
@@ -154,6 +164,6 @@ export async function entityResponse(db: Kysely<Database>, id: string) {
   };
 }
 
-export function serializeComponent<T extends { revision: string }>(component: T) {
-  return { ...component, revision: String(component.revision) };
+export function serializeComponent<T extends { value: string; revision: number }>(component: T) {
+  return { ...component, value: parseJson(component.value), revision: String(component.revision) };
 }

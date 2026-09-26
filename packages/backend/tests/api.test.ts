@@ -1,7 +1,6 @@
-import { PGlite } from "@electric-sql/pglite";
-import type { Database } from "@logos/db";
+import { connectDatabase } from "@logos/db";
 import { expect, test } from "vite-plus/test";
-import { Kysely, PGliteDialect } from "kysely";
+import type { Kysely } from "kysely";
 import { up } from "../../db/src/migrations/20260926_initial.ts";
 import { createLogosApi } from "../src/index.ts";
 
@@ -9,8 +8,7 @@ const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
 
 async function setup() {
-  const pglite = new PGlite();
-  const db = new Kysely<Database>({ dialect: new PGliteDialect({ pglite }) });
+  const db = await connectDatabase("file::memory:");
   await up(db as unknown as Kysely<unknown>);
   const app = createLogosApi({
     db,

@@ -12,7 +12,9 @@
     "test": "vp test"
   },
   "dependencies": {
-    "kysely": "catalog:"
+    "@libsql/client": "catalog:",
+    "kysely": "catalog:",
+    "kysely-turso": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

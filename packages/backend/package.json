@@ -18,7 +18,6 @@
     "kysely": "catalog:"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

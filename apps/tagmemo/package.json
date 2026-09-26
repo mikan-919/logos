@@ -11,18 +11,18 @@
     "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
+    "@libsql/client": "catalog:",
     "@logos/backend": "workspace:*",
     "@logos/db": "workspace:*",
+    "better-auth": "catalog:",
     "hono": "catalog:",
     "irisout": "^0.3.4",
     "kysely": "catalog:",
-    "pg": "catalog:"
+    "kysely-turso": "catalog:"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "catalog:",
     "@mizchi/vlmkit": "0.22.0",
     "@types/node": "catalog:",
-    "@types/pg": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

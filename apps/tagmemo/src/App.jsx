@@ -1,4 +1,5 @@
 import { derived, onMount, render, signal } from "irisout";
+import { currentUser, signIn, signOut, signUp } from "./auth-client.js";
 import { createTag, deleteMemo, editableExtras, loadData, saveMemo, updateExtra } from "./data.js";
 
 export function App() {
@@ -16,6 +17,12 @@ export function App() {
   const draftTags = signal([]);
   const extraKey = signal("");
   const extraValue = signal({});
+  const user = signal(null);
+  const checking = signal(true);
+  const authMode = signal("signin");
+  const email = signal("");
+  const password = signal("");
+  const displayName = signal("");
 
   const visibleNotes = derived(() =>
     notes().filter(
@@ -39,243 +46,349 @@ export function App() {
 
   render(
     <div class="shell">
-      <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark">✳</span>
-          <span>TagMemo</span>
-        </div>
-        <label class="search">
-          <span>検索</span>
+      <div class="auth-loading" hidden={!checking()}>
+        ログイン状態を確認しています
+      </div>
+      <section class="auth-screen" hidden={checking() || Boolean(user())} aria-label="認証">
+        <form class="auth-card" onSubmit={submitAuth}>
+          <div class="brand">
+            <span class="brand-mark">✳</span>
+            <span>TagMemo</span>
+          </div>
+          <p class="eyebrow">Logos</p>
+          <h1>{authMode() === "signup" ? "アカウントを作成" : "ログイン"}</h1>
+          <p class="auth-description">メモとタグを、あなたのアカウントに保存します。</p>
+          <label for="auth-name" hidden={authMode() !== "signup"}>
+            名前
+          </label>
           <input
-            type="search"
-            placeholder="メモを検索"
-            value={search()}
-            onInput={(event) => search(event.currentTarget.value)}
+            id="auth-name"
+            type="text"
+            autocomplete="name"
+            required={authMode() === "signup"}
+            hidden={authMode() !== "signup"}
+            value={displayName()}
+            onInput={(event) => displayName(event.currentTarget.value)}
           />
-        </label>
-        <button class="primary" type="button" onClick={() => openEditor("")}>
-          ＋ メモを作成
-        </button>
-      </header>
-      <div class="workspace">
-        <aside class="sidebar" aria-label="タグ">
-          <p class="eyebrow">ライブラリ</p>
-          <button
-            class={selectedTag() ? "nav-item" : "nav-item active"}
-            type="button"
-            onClick={() => selectedTag("")}
-          >
-            <span>すべてのメモ</span>
-            <span>{notes().length}</span>
+          <label for="auth-email">メールアドレス</label>
+          <input
+            id="auth-email"
+            type="email"
+            autocomplete="email"
+            required
+            value={email()}
+            onInput={(event) => email(event.currentTarget.value)}
+          />
+          <label for="auth-password">パスワード</label>
+          <input
+            id="auth-password"
+            type="password"
+            autocomplete={authMode() === "signup" ? "new-password" : "current-password"}
+            minlength="8"
+            required
+            value={password()}
+            onInput={(event) => password(event.currentTarget.value)}
+          />
+          <p class="status" role="alert">
+            {status()}
+          </p>
+          <button class="primary" type="submit" disabled={busy()}>
+            {authMode() === "signup" ? "登録する" : "ログイン"}
           </button>
-          <div class="sidebar-heading">
-            <p class="eyebrow">タグ</p>
-            <span>{tags().length}</span>
+          <button class="quiet auth-switch" type="button" onClick={switchAuth}>
+            {authMode() === "signup" ? "ログインに戻る" : "アカウントを作成"}
+          </button>
+        </form>
+      </section>
+      <div class="app-content" hidden={!user()}>
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark">✳</span>
+            <span>TagMemo</span>
           </div>
-          <div class="tag-list">
-            {tags().map((tag) => (
-              <button
-                key={tag.id}
-                class={selectedTag() === tag.id ? "tag-item active" : "tag-item"}
-                type="button"
-                onClick={() => selectedTag(tag.id)}
-              >
-                <span class="tag-name">{tag.name}</span>
+          <label class="search">
+            <span>検索</span>
+            <input
+              type="search"
+              placeholder="メモを検索"
+              value={search()}
+              onInput={(event) => search(event.currentTarget.value)}
+            />
+          </label>
+          <button class="primary" type="button" onClick={() => openEditor("")}>
+            ＋ メモを作成
+          </button>
+          <button class="quiet logout" type="button" onClick={logout}>
+            ログアウト
+          </button>
+        </header>
+        <div class="workspace">
+          <aside class="sidebar" aria-label="タグ">
+            <p class="eyebrow">ライブラリ</p>
+            <button
+              class={selectedTag() ? "nav-item" : "nav-item active"}
+              type="button"
+              onClick={() => selectedTag("")}
+            >
+              <span>すべてのメモ</span>
+              <span>{notes().length}</span>
+            </button>
+            <div class="sidebar-heading">
+              <p class="eyebrow">タグ</p>
+              <span>{tags().length}</span>
+            </div>
+            <div class="tag-list">
+              {tags().map((tag) => (
+                <button
+                  key={tag.id}
+                  class={selectedTag() === tag.id ? "tag-item active" : "tag-item"}
+                  type="button"
+                  onClick={() => selectedTag(tag.id)}
+                >
+                  <span class="tag-name">{tag.name}</span>
+                </button>
+              ))}
+            </div>
+            <form class="new-tag-form" onSubmit={addTag}>
+              <label for="new-tag-name">タグを追加</label>
+              <div>
+                <input
+                  id="new-tag-name"
+                  maxlength="80"
+                  placeholder="タグ名"
+                  required
+                  value={newTag()}
+                  onInput={(event) => newTag(event.currentTarget.value)}
+                />
+                <button type="submit" aria-label="タグを追加" disabled={busy()}>
+                  ＋
+                </button>
+              </div>
+            </form>
+          </aside>
+          <main class="main">
+            <div class="main-heading">
+              <div>
+                <p class="eyebrow">あなたのノート</p>
+                <h1>{viewTitle()}</h1>
+              </div>
+              <span class="count">
+                <span>{visibleNotes().length}</span>
+                <span> 件</span>
+              </span>
+            </div>
+            <p class="status" role="status" aria-live="polite">
+              {status()}
+            </p>
+            <div class="memo-list">
+              {visibleNotes().length === 0 && (
+                <div class="empty">
+                  <strong>メモがありません</strong>
+                  <span>メモを作成して、タグで整理できます。</span>
+                </div>
+              )}
+              {visibleNotes().map((note) => (
+                <article key={note.id} class="memo-card">
+                  <h2>{note.title}</h2>
+                  <p>{note.body}</p>
+                  <div class="card-footer">
+                    <div class="chips">
+                      {note.tagLabels.map((tag) => (
+                        <span key={tag.id} class="chip">
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => openEditor(note.id)}>
+                      編集
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </main>
+        </div>
+
+        <dialog id="memo-dialog" class="editor-dialog">
+          <form class="editor-form" onSubmit={save}>
+            <div class="dialog-head">
+              <div>
+                <p class="eyebrow">TagMemo</p>
+                <h2>{editingId() ? "メモを編集" : "メモを作成"}</h2>
+              </div>
+              <button class="icon-button" type="button" aria-label="閉じる" onClick={closeEditor}>
+                ×
               </button>
-            ))}
-          </div>
-          <form class="new-tag-form" onSubmit={addTag}>
-            <label for="new-tag-name">タグを追加</label>
-            <div>
-              <input
-                id="new-tag-name"
-                maxlength="80"
-                placeholder="タグ名"
-                required
-                value={newTag()}
-                onInput={(event) => newTag(event.currentTarget.value)}
-              />
-              <button type="submit" aria-label="タグを追加" disabled={busy()}>
-                ＋
+            </div>
+            <label for="memo-title">タイトル</label>
+            <input
+              id="memo-title"
+              maxlength="200"
+              required
+              placeholder="何について書きますか"
+              value={title()}
+              onInput={(event) => title(event.currentTarget.value)}
+            />
+            <label for="memo-body">本文</label>
+            <textarea
+              id="memo-body"
+              rows="10"
+              placeholder="メモを書き始める"
+              value={body()}
+              onInput={(event) => body(event.currentTarget.value)}
+            ></textarea>
+            <p class="status" role="alert">
+              {status()}
+            </p>
+            <fieldset>
+              <legend>タグ</legend>
+              <div class="tag-options">
+                {tags().map((tag) => (
+                  <label key={tag.id} class="tag-option">
+                    <input
+                      type="checkbox"
+                      checked={draftTags().includes(tag.id)}
+                      onChange={() => toggleTag(tag.id)}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div class="dialog-actions">
+              <button class="danger" type="button" hidden={!editingId()} onClick={removeMemo}>
+                削除
+              </button>
+              <span class="spacer"></span>
+              <button
+                class="quiet"
+                type="button"
+                hidden={extras().length === 0}
+                onClick={openExtras}
+              >
+                <span>{extras().length}</span>
+                <span> components</span>
+              </button>
+              <button class="primary" type="submit" disabled={busy()}>
+                保存
               </button>
             </div>
           </form>
-        </aside>
-        <main class="main">
-          <div class="main-heading">
-            <div>
-              <p class="eyebrow">あなたのノート</p>
-              <h1>{viewTitle()}</h1>
-            </div>
-            <span class="count">
-              <span>{visibleNotes().length}</span>
-              <span> 件</span>
-            </span>
-          </div>
-          <p class="status" role="status" aria-live="polite">
-            {status()}
-          </p>
-          <div class="memo-list">
-            {visibleNotes().length === 0 && (
-              <div class="empty">
-                <strong>メモがありません</strong>
-                <span>メモを作成して、タグで整理できます。</span>
-              </div>
-            )}
-            {visibleNotes().map((note) => (
-              <article key={note.id} class="memo-card">
-                <h2>{note.title}</h2>
-                <p>{note.body}</p>
-                <div class="card-footer">
-                  <div class="chips">
-                    {note.tagLabels.map((tag) => (
-                      <span key={tag.id} class="chip">
-                        {tag.name}
-                      </span>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => openEditor(note.id)}>
-                    編集
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </main>
-      </div>
+        </dialog>
 
-      <dialog id="memo-dialog" class="editor-dialog">
-        <form class="editor-form" onSubmit={save}>
-          <div class="dialog-head">
-            <div>
-              <p class="eyebrow">TagMemo</p>
-              <h2>{editingId() ? "メモを編集" : "メモを作成"}</h2>
+        <dialog id="components-dialog" class="components-dialog">
+          <form class="editor-form" onSubmit={saveExtra}>
+            <div class="dialog-head">
+              <div>
+                <p class="eyebrow">関連データ</p>
+                <h2>Component</h2>
+              </div>
+              <button class="icon-button" type="button" aria-label="閉じる" onClick={closeExtras}>
+                ×
+              </button>
             </div>
-            <button class="icon-button" type="button" aria-label="閉じる" onClick={closeEditor}>
-              ×
-            </button>
-          </div>
-          <label for="memo-title">タイトル</label>
-          <input
-            id="memo-title"
-            maxlength="200"
-            required
-            placeholder="何について書きますか"
-            value={title()}
-            onInput={(event) => title(event.currentTarget.value)}
-          />
-          <label for="memo-body">本文</label>
-          <textarea
-            id="memo-body"
-            rows="10"
-            placeholder="メモを書き始める"
-            value={body()}
-            onInput={(event) => body(event.currentTarget.value)}
-          ></textarea>
-          <p class="status" role="alert">
-            {status()}
-          </p>
-          <fieldset>
-            <legend>タグ</legend>
-            <div class="tag-options">
-              {tags().map((tag) => (
-                <label key={tag.id} class="tag-option">
+            <label for="component-select">編集する Component</label>
+            <select
+              id="component-select"
+              value={extraKey()}
+              onChange={(event) => chooseExtra(event.currentTarget.value)}
+            >
+              {extras().map((item) => (
+                <option key={item.type_key} value={item.type_key}>
+                  {item.type_key}
+                </option>
+              ))}
+            </select>
+            <div class="component-fields">
+              {booleanFields().map((field) => (
+                <label key={field.name} class="checkbox-row">
                   <input
                     type="checkbox"
-                    checked={draftTags().includes(tag.id)}
-                    onChange={() => toggleTag(tag.id)}
+                    checked={Boolean(extraValue()[field.name])}
+                    onChange={(event) => setExtraField(field.name, event.currentTarget.checked)}
                   />
-                  <span>{tag.name}</span>
+                  <span>{field.name}</span>
+                </label>
+              ))}
+              {textFields().map((field) => (
+                <label key={field.name}>
+                  <span>{field.name}</span>
+                  <input
+                    type={field.type === "string" ? "text" : "number"}
+                    step={field.type === "integer" ? "1" : "any"}
+                    value={extraValue()[field.name] ?? ""}
+                    onInput={(event) =>
+                      setExtraField(
+                        field.name,
+                        field.type === "string"
+                          ? event.currentTarget.value
+                          : Number(event.currentTarget.value),
+                      )
+                    }
+                  />
                 </label>
               ))}
             </div>
-          </fieldset>
-          <div class="dialog-actions">
-            <button class="danger" type="button" hidden={!editingId()} onClick={removeMemo}>
-              削除
-            </button>
-            <span class="spacer"></span>
-            <button class="quiet" type="button" hidden={extras().length === 0} onClick={openExtras}>
-              <span>{extras().length}</span>
-              <span> components</span>
-            </button>
-            <button class="primary" type="submit" disabled={busy()}>
-              保存
-            </button>
-          </div>
-        </form>
-      </dialog>
-
-      <dialog id="components-dialog" class="components-dialog">
-        <form class="editor-form" onSubmit={saveExtra}>
-          <div class="dialog-head">
-            <div>
-              <p class="eyebrow">関連データ</p>
-              <h2>Component</h2>
+            <p class="status" role="alert">
+              {status()}
+            </p>
+            <div class="dialog-actions">
+              <span class="spacer"></span>
+              <button class="primary" type="submit" disabled={busy()}>
+                変更を保存
+              </button>
             </div>
-            <button class="icon-button" type="button" aria-label="閉じる" onClick={closeExtras}>
-              ×
-            </button>
-          </div>
-          <label for="component-select">編集する Component</label>
-          <select
-            id="component-select"
-            value={extraKey()}
-            onChange={(event) => chooseExtra(event.currentTarget.value)}
-          >
-            {extras().map((item) => (
-              <option key={item.type_key} value={item.type_key}>
-                {item.type_key}
-              </option>
-            ))}
-          </select>
-          <div class="component-fields">
-            {booleanFields().map((field) => (
-              <label key={field.name} class="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={Boolean(extraValue()[field.name])}
-                  onChange={(event) => setExtraField(field.name, event.currentTarget.checked)}
-                />
-                <span>{field.name}</span>
-              </label>
-            ))}
-            {textFields().map((field) => (
-              <label key={field.name}>
-                <span>{field.name}</span>
-                <input
-                  type={field.type === "string" ? "text" : "number"}
-                  step={field.type === "integer" ? "1" : "any"}
-                  value={extraValue()[field.name] ?? ""}
-                  onInput={(event) =>
-                    setExtraField(
-                      field.name,
-                      field.type === "string"
-                        ? event.currentTarget.value
-                        : Number(event.currentTarget.value),
-                    )
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          <p class="status" role="alert">
-            {status()}
-          </p>
-          <div class="dialog-actions">
-            <span class="spacer"></span>
-            <button class="primary" type="submit" disabled={busy()}>
-              変更を保存
-            </button>
-          </div>
-        </form>
-      </dialog>
+          </form>
+        </dialog>
+      </div>
     </div>,
   );
 
   onMount(() => {
-    reload();
+    refreshSession();
   });
+
+  function refreshSession() {
+    currentUser()
+      .then((nextUser) => {
+        user(nextUser);
+        checking(false);
+        if (nextUser) reload();
+      })
+      .catch((error) => {
+        checking(false);
+        fail(error);
+      });
+  }
+  function switchAuth() {
+    authMode(authMode() === "signin" ? "signup" : "signin");
+    status("");
+  }
+  function submitAuth(event) {
+    event.preventDefault();
+    busy(true);
+    const action =
+      authMode() === "signup"
+        ? signUp(displayName(), email(), password())
+        : signIn(email(), password());
+    action
+      .then(() => {
+        password("");
+        refreshSession();
+      })
+      .catch(fail)
+      .finally(() => busy(false));
+  }
+  function logout() {
+    signOut()
+      .then(() => {
+        user(null);
+        notes([]);
+        tags([]);
+        status("");
+      })
+      .catch(fail);
+  }
 
   function fail(error) {
     status(error.message ?? String(error));

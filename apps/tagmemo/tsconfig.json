@@ -10,6 +10,7 @@
     "jsx": "preserve",
     "isolatedModules": true,
     "strict": false,
+    "skipLibCheck": true,
     "types": ["irisout/jsx"]
   },
   "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.d.ts"]

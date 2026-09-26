@@ -9,3 +9,4 @@ export type {
   PermissionTypesTable,
   UsersTable,
 } from "./schema.ts";
+export { connectDatabase } from "./connect.ts";

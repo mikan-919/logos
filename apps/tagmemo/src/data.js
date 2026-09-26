@@ -31,11 +31,17 @@ const definitions = [
 ];
 
 async function api(path, method = "GET", data) {
-  const response = await fetch(`/api${path}`, {
-    method,
-    headers: data === undefined ? undefined : { "Content-Type": "application/json" },
-    body: data === undefined ? undefined : JSON.stringify(data),
-  });
+  if (data !== undefined && method !== "POST" && method !== "PUT") {
+    throw new Error("データを送る操作は POST または PUT にしてください");
+  }
+  const response =
+    data === undefined
+      ? await fetch(`/api${path}`, { method })
+      : await fetch(`/api${path}`, {
+          method: method === "POST" ? "POST" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.error ?? `要求に失敗しました (${response.status})`);
@@ -133,11 +139,13 @@ export async function saveMemo(note, title, body, tagIds) {
       ["tagmemo.tags", tags],
     ]);
   }
-  for (const [typeKey, value] of [
+  /** @type {[string, Record<string, unknown>][]} */
+  const parts = [
     ["logos.name", name],
     ["tagmemo.memo", memo],
     ["tagmemo.tags", tags],
-  ]) {
+  ];
+  for (const [typeKey, value] of parts) {
     const existing = component(note, typeKey);
     if (existing) {
       await api(`/entities/${note.id}/components/${typeKey}`, "PUT", {

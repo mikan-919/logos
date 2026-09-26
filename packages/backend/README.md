@@ -1,6 +1,6 @@
 # Logos API
 
-`createLogosApi({ db, authenticate })` は Hono のアプリを返す。呼び出し側が PostgreSQL に接続した Kysely と認証処理を渡す。`authenticate` は検証済みの利用者 ID（UUID）とアプリ ID を返す。認証情報がない要求には 401 を返す。
+`createLogosApi({ db, authenticate })` は Hono のアプリを返す。呼び出し側が SQLite に接続した Kysely と認証処理を渡す。`authenticate` は検証済みの利用者 ID（UUID）とアプリ ID を返す。認証情報がない要求には 401 を返す。
 
 | 操作               | 経路                                                       | 内容                                                                   |
 | ------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------- |

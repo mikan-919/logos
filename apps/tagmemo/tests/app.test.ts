@@ -1,21 +1,16 @@
-import { PGlite } from "@electric-sql/pglite";
-import type { Database } from "@logos/db";
 import { expect, test } from "vite-plus/test";
-import { Kysely, PGliteDialect } from "kysely";
-import { up } from "../../../packages/db/src/migrations/20260926_initial.ts";
-import { createTagmemoApp } from "../src/app.ts";
+import { setup } from "./helpers.ts";
 
 test("TagMemo の API は Entity にメモとタグを保存する", async () => {
-  const db = new Kysely<Database>({ dialect: new PGliteDialect({ pglite: new PGlite() }) });
+  const { db, app, cookie, origin } = await setup();
   try {
-    await up(db as unknown as Kysely<unknown>);
-    const app = createTagmemoApp(db, "00000000-0000-4000-8000-000000000001");
     const request = (path: string, method = "GET", data?: unknown) =>
-      app.request(path, {
+      app.request(`${origin}${path}`, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: data === undefined ? undefined : JSON.stringify(data),
       });
+    expect((await app.request(`${origin}/api/entities`)).status).toBe(401);
     for (const [key, schema] of [
       [
         "logos.name",
@@ -53,6 +48,27 @@ test("TagMemo の API は Entity にメモとタグを保存する", async () =>
       "logos.name",
       "tagmemo.memo",
     ]);
+    const signedOut = await app.request(`${origin}/api/auth/sign-out`, {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: origin },
+    });
+    expect(signedOut.status).toBe(200);
+    expect((await request(`/api/entities/${entity.id}`)).status).toBe(401);
+    const signedIn = await app.request(`${origin}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: origin },
+      body: JSON.stringify({ email: "test@example.com", password: "password1234" }),
+    });
+    expect(signedIn.status).toBe(200);
+    const newCookie = signedIn.headers.get("set-cookie")?.split(";")[0];
+    expect(newCookie).toBeTruthy();
+    expect(
+      (
+        await app.request(`${origin}/api/entities/${entity.id}`, {
+          headers: { Cookie: newCookie ?? "" },
+        })
+      ).status,
+    ).toBe(200);
   } finally {
     await db.destroy();
   }

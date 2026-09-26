@@ -1,4 +1,4 @@
-import type { Generated, JSONColumnType } from "kysely";
+import type { Generated } from "kysely";
 
 export type PermissionKey = "read" | "write" | "manage";
 export type JsonObject = Record<string, unknown>;
@@ -14,7 +14,7 @@ export interface Database {
 
 export interface EntitiesTable {
   id: string;
-  created_at: Generated<Date>;
+  created_at: Generated<string>;
 }
 
 export interface UsersTable {
@@ -34,13 +34,13 @@ export interface EntityPermissionsTable {
 export interface ComponentTypesTable {
   key: string;
   owner_app: string;
-  schema: JSONColumnType<JsonObject>;
+  schema: string;
 }
 
 export interface ComponentsTable {
   entity_id: string;
   type_key: string;
-  value: JSONColumnType<JsonObject>;
-  revision: Generated<string>;
-  updated_at: Generated<Date>;
+  value: string;
+  revision: Generated<number>;
+  updated_at: Generated<string>;
 }

@@ -1,20 +1,20 @@
-import { PostgresDialect, Kysely } from "kysely";
 import { Migrator } from "kysely/migration";
-import pg from "pg";
 import { serveStatic } from "hono/bun";
-import type { Database } from "@logos/db";
-import * as initialMigration from "../../../packages/db/src/migrations/20260926_initial.ts";
+import { getMigrations } from "better-auth/db/migration";
+import { connectDatabase } from "@logos/db";
+import * as initialMigration from "@logos/db/migrations/initial";
 import { createTagmemoApp } from "./app.ts";
+import { createAuth } from "./auth.ts";
 
-const databaseUrl = process.env.DATABASE_URL;
-const userId = process.env.TAGMEMO_USER_ID;
-if (!databaseUrl || !userId) {
-  throw new Error("DATABASE_URL と TAGMEMO_USER_ID を設定してください");
-}
+const databaseUrl = process.env.TURSO_DATABASE_URL ?? "file:./tagmemo.db";
+const baseURL = process.env.BETTER_AUTH_URL;
+const secret = process.env.BETTER_AUTH_SECRET;
+if (!baseURL || !secret)
+  throw new Error("BETTER_AUTH_URL と BETTER_AUTH_SECRET を設定してください");
 
-const db = new Kysely<Database>({
-  dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: databaseUrl }) }),
-});
+const db = await connectDatabase(databaseUrl, process.env.TURSO_AUTH_TOKEN);
+const auth = createAuth(db, baseURL, secret);
+await (await getMigrations(auth.options)).runMigrations();
 const migrator = new Migrator({
   db,
   provider: { getMigrations: async () => ({ "20260926_initial": initialMigration }) },
@@ -25,7 +25,7 @@ if (error) {
   throw error;
 }
 
-const app = createTagmemoApp(db, userId);
+const app = createTagmemoApp(db, auth);
 app.use("/*", serveStatic({ root: "./dist" }));
 app.get("/", serveStatic({ path: "./dist/index.html" }));
 

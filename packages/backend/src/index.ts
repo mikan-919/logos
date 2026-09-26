@@ -15,6 +15,7 @@ import {
   requirePermission,
   revision,
   serializeComponent,
+  serializeType,
   uuid,
   validateValue,
 } from "./utils.ts";
@@ -117,7 +118,6 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
         .selectFrom("entities")
         .select("id")
         .where("id", "=", id)
-        .forUpdate()
         .executeTakeFirst();
       if (!entity) throw new HTTPException(404, { message: "Entity が見つかりません" });
       await requirePermission(tx, id, userId, "manage");
@@ -126,7 +126,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
         .select("entity_id")
         .where("entity_id", "!=", id)
         .where(
-          sql<boolean>`${sql.ref("value")} @> jsonb_build_object('entities', jsonb_build_array(${id}::text))`,
+          sql<boolean>`EXISTS (SELECT 1 FROM json_each(${sql.ref("components.value")}, '$.entities') AS ref WHERE ref.value = ${id})`,
         )
         .executeTakeFirst();
       if (reference) throw new HTTPException(409, { message: "他の Entity から参照されています" });
@@ -137,7 +137,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
 
   app.get("/component-types", async (c) => {
     const types = await db.selectFrom("component_types").selectAll().orderBy("key").execute();
-    return c.json({ types });
+    return c.json({ types: types.map(serializeType) });
   });
 
   app.post("/component-types", async (c) => {
@@ -160,7 +160,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
       .returningAll()
       .executeTakeFirst();
     if (!inserted) throw new HTTPException(409, { message: "Component 型は登録済みです" });
-    return c.json(inserted, 201);
+    return c.json(serializeType(inserted), 201);
   });
 
   app.get("/component-types/:key", async (c) => {
@@ -170,7 +170,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
       .where("key", "=", key(c.req.param("key")))
       .executeTakeFirst();
     if (!type) throw new HTTPException(404, { message: "Component 型が見つかりません" });
-    return c.json(type);
+    return c.json(serializeType(type));
   });
 
   app.post("/entities/:id/components", async (c) => {
@@ -225,7 +225,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
         .set({
           value: JSON.stringify(input.value),
           revision: sql`revision + 1`,
-          updated_at: new Date(),
+          updated_at: sql`CURRENT_TIMESTAMP`,
         })
         .where("entity_id", "=", id)
         .where("type_key", "=", typeKey)
@@ -280,7 +280,6 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
         .selectFrom("entities")
         .select("id")
         .where("id", "=", id)
-        .forUpdate()
         .executeTakeFirst();
       if (!entity) throw new HTTPException(404, { message: "Entity が見つかりません" });
       await requirePermission(tx, id, userId, "manage");
@@ -311,7 +310,6 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
         .selectFrom("entities")
         .select("id")
         .where("id", "=", id)
-        .forUpdate()
         .executeTakeFirst();
       if (!entity) throw new HTTPException(404, { message: "Entity が見つかりません" });
       await requirePermission(tx, id, userId, "manage");
