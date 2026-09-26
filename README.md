@@ -1,29 +1,24 @@
-# Vite+ Monorepo Starter
+# Logos
 
-A starter for creating a Vite+ monorepo.
+Logos は、複数のアプリが同じ Entity に Component を追加して情報を共有する基盤。`packages/db` に SQLite の表、`packages/backend` に Logos API、`apps/tagmemo` に irisout の画面と Cloudflare Worker を置く。
 
-## Development
+## TagMemo を起動する
 
-- Check everything is ready:
+Turso の接続情報と Better Auth の設定を `apps/tagmemo/.dev.vars` に用意する。値の形式は [TagMemo の手順](apps/tagmemo/README.md)を参照。
 
-```bash
-vp run ready
+```sh
+vp install
+vp dev
 ```
 
-- Run the tests:
+画面と API は `http://localhost:5173` で動く。別のアプリ `apps/website` を起動するときは `vp run website` を使う。
 
-```bash
-vp run -r test
+## ビルドと配置
+
+```sh
+vp build
+vp run tagmemo#deploy:check
+vp run deploy
 ```
 
-- Build the monorepo:
-
-```bash
-vp run -r build
-```
-
-- Run the development server:
-
-```bash
-vp run dev
-```
+`vp build` は TagMemo の画面と Worker を生成する。`deploy:check` はアップロードを行わずに配置内容を検査する。配置前に Cloudflare の認証と Worker の環境変数を設定する。手順は [TagMemo の手順](apps/tagmemo/README.md)に記載する。

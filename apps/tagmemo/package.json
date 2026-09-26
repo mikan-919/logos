@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "api": "PORT=3001 bun --watch src/server.ts",
     "build": "vp build",
     "start": "bun src/server.ts",
+    "deploy": "wrangler deploy --config dist/logos_tagmemo/wrangler.json",
+    "deploy:check": "wrangler deploy --config dist/logos_tagmemo/wrangler.json --dry-run",
     "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
@@ -21,9 +22,11 @@
     "kysely-turso": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
     "@mizchi/vlmkit": "0.22.0",
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "wrangler": "catalog:"
   }
 }

@@ -1,10 +1,8 @@
-import { Migrator } from "kysely/migration";
 import { serveStatic } from "hono/bun";
-import { getMigrations } from "better-auth/db/migration";
 import { connectDatabase } from "@logos/db";
-import * as initialMigration from "@logos/db/migrations/initial";
 import { createTagmemoApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
+import { migrate } from "./migrate.ts";
 
 const databaseUrl = process.env.TURSO_DATABASE_URL ?? "file:./tagmemo.db";
 const baseURL = process.env.BETTER_AUTH_URL;
@@ -14,13 +12,9 @@ if (!baseURL || !secret)
 
 const db = await connectDatabase(databaseUrl, process.env.TURSO_AUTH_TOKEN);
 const auth = createAuth(db, baseURL, secret);
-await (await getMigrations(auth.options)).runMigrations();
-const migrator = new Migrator({
-  db,
-  provider: { getMigrations: async () => ({ "20260926_initial": initialMigration }) },
-});
-const { error } = await migrator.migrateToLatest();
-if (error) {
+try {
+  await migrate(db, auth);
+} catch (error) {
   await db.destroy();
   throw error;
 }

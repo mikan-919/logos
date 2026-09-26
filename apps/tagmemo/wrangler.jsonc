@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "logos-tagmemo",
+  "compatibility_date": "2026-09-26",
+  "main": "./src/worker.ts",
+  "secrets": {
+    "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET"],
+  },
+  "assets": {
+    "run_worker_first": ["/api/*"],
+  },
+}

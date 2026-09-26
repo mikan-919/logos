@@ -6,6 +6,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@cloudflare/vite-plugin": ^1.60.1
   "@libsql/client": ^0.18.0
   "@types/node": ^24
   ajv: ^8.20.0
@@ -18,6 +19,7 @@ catalog:
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0
+  wrangler: ^4.140.0
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:
@@ -27,3 +29,6 @@ peerDependencyRules:
     vite: "*"
 minimumReleaseAgeExclude:
   - irisout@0.3.1 || 0.3.3 || 0.3.4
+allowBuilds:
+  esbuild: true
+  workerd: true
