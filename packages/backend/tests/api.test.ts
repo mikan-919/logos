@@ -78,6 +78,8 @@ test("ECS search and cross-app component updates", async () => {
       "calendar",
     );
     expect((await found.json()).ids).toEqual([id]);
+    const nextPage = await request("GET", `/entities?has=logos.name,tasks.task&after=${id}`);
+    expect((await nextPage.json()).ids).toEqual([]);
     const updated = await request(
       "PUT",
       `/entities/${id}/components/tasks.task`,

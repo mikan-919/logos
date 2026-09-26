@@ -8,11 +8,13 @@ catalogMode: prefer
 catalog:
   "@electric-sql/pglite": ^0.5.8
   "@types/node": ^24
+  "@types/pg": ^8.15.5
   ajv: ^8.20.0
   ajv-formats: ^3.0.1
   hono: ^4.13.9
   irisout: ^0.3.0
   kysely: ^0.29.6
+  pg: ^8.16.3
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0

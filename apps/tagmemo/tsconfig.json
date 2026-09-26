@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
+    "jsx": "preserve",
+    "isolatedModules": true,
+    "strict": false,
+    "types": ["irisout/jsx"]
+  },
+  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.d.ts"]
+}

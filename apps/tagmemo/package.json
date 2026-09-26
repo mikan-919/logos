@@ -1,0 +1,29 @@
+{
+  "name": "tagmemo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "api": "PORT=3001 bun --watch src/server.ts",
+    "build": "vp build",
+    "start": "bun src/server.ts",
+    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+  },
+  "dependencies": {
+    "@logos/backend": "workspace:*",
+    "@logos/db": "workspace:*",
+    "hono": "catalog:",
+    "irisout": "^0.3.4",
+    "kysely": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@mizchi/vlmkit": "0.22.0",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

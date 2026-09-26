@@ -17,7 +17,7 @@ import {
   serializeComponent,
   uuid,
   validateValue,
-} from "./utils.js";
+} from "./utils.ts";
 
 export interface Identity {
   userId: string;
@@ -79,12 +79,15 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
     const limitValue = c.req.query("limit") ?? "100";
     const limit = Number(limitValue);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) invalid("limit は1から100です");
+    const after = c.req.query("after");
+    if (after) uuid(after);
 
     let query = db
       .selectFrom("entities as e")
       .innerJoin("entity_permissions as p", "p.entity_id", "e.id")
       .where("p.user_id", "=", userId)
       .where("p.permission_key", "=", "read");
+    if (after) query = query.where("e.id", ">", after);
     for (const typeKey of types) {
       query = query.where((eb) =>
         eb.exists(
