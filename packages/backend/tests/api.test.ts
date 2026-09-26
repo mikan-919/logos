@@ -3,9 +3,33 @@ import { expect, test } from "vite-plus/test";
 import type { Kysely } from "kysely";
 import { up } from "../../db/src/migrations/20260926_initial.ts";
 import { createLogosApi } from "../src/index.ts";
+import { schemaValidator } from "../src/utils.ts";
 
 const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
+
+test("JSON Schema validation works without dynamic code generation", () => {
+  const originalFunction = globalThis.Function;
+  globalThis.Function = new Proxy(originalFunction, {
+    apply() {
+      throw new Error("dynamic code generation is unavailable");
+    },
+    construct() {
+      throw new Error("dynamic code generation is unavailable");
+    },
+  });
+  try {
+    const validator = schemaValidator({
+      type: "object",
+      properties: { entities: { type: "array", items: { type: "string", format: "uuid" } } },
+      required: ["entities"],
+    });
+    expect(validator.validate({ entities: [alice] }).valid).toBe(true);
+    expect(validator.validate({ entities: ["invalid"] }).valid).toBe(false);
+  } finally {
+    globalThis.Function = originalFunction;
+  }
+});
 
 async function setup() {
   const db = await connectDatabase("file::memory:");

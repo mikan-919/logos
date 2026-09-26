@@ -11,9 +11,8 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@cfworker/json-schema": "catalog:",
     "@logos/db": "workspace:*",
-    "ajv": "catalog:",
-    "ajv-formats": "catalog:",
     "hono": "catalog:",
     "kysely": "catalog:"
   },

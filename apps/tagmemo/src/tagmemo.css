@@ -497,7 +497,7 @@ dialog::backdrop {
 .editor-form > .status:empty {
   display: none;
 }
-[hidden] {
+[data-hidden="true"] {
   display: none !important;
 }
 .auth-loading {

@@ -46,10 +46,10 @@ export function App() {
 
   render(
     <div class="shell">
-      <div class="auth-loading" hidden={!checking()}>
+      <div class="auth-loading" data-hidden={!checking()}>
         ログイン状態を確認しています
       </div>
-      <section class="auth-screen" hidden={checking() || Boolean(user())} aria-label="認証">
+      <section class="auth-screen" data-hidden={checking() || Boolean(user())} aria-label="認証">
         <form class="auth-card" onSubmit={submitAuth}>
           <div class="brand">
             <span class="brand-mark">✳</span>
@@ -58,15 +58,16 @@ export function App() {
           <p class="eyebrow">Logos</p>
           <h1>{authMode() === "signup" ? "アカウントを作成" : "ログイン"}</h1>
           <p class="auth-description">メモとタグを、あなたのアカウントに保存します。</p>
-          <label for="auth-name" hidden={authMode() !== "signup"}>
+          <label for="auth-name" data-hidden={authMode() !== "signup"}>
             名前
           </label>
           <input
             id="auth-name"
             type="text"
             autocomplete="name"
-            required={authMode() === "signup"}
-            hidden={authMode() !== "signup"}
+            required
+            disabled={authMode() !== "signup"}
+            data-hidden={authMode() !== "signup"}
             value={displayName()}
             onInput={(event) => displayName(event.currentTarget.value)}
           />
@@ -100,7 +101,7 @@ export function App() {
           </button>
         </form>
       </section>
-      <div class="app-content" hidden={!user()}>
+      <div class="app-content" data-hidden={!user()}>
         <header class="topbar">
           <div class="brand">
             <span class="brand-mark">✳</span>
@@ -256,14 +257,14 @@ export function App() {
               </div>
             </fieldset>
             <div class="dialog-actions">
-              <button class="danger" type="button" hidden={!editingId()} onClick={removeMemo}>
+              <button class="danger" type="button" data-hidden={!editingId()} onClick={removeMemo}>
                 削除
               </button>
               <span class="spacer"></span>
               <button
                 class="quiet"
                 type="button"
-                hidden={extras().length === 0}
+                data-hidden={extras().length === 0}
                 onClick={openExtras}
               >
                 <span>{extras().length}</span>
@@ -345,21 +346,21 @@ export function App() {
   );
 
   onMount(() => {
-    refreshSession();
-  });
-
-  function refreshSession() {
     currentUser()
       .then((nextUser) => {
         user(nextUser);
         checking(false);
-        if (nextUser) reload();
+        if (nextUser)
+          loadData()
+            .then((data) => applyData(data))
+            .catch((error) => fail(error));
       })
       .catch((error) => {
         checking(false);
         fail(error);
       });
-  }
+  });
+
   function switchAuth() {
     authMode(authMode() === "signin" ? "signup" : "signin");
     status("");
@@ -374,9 +375,18 @@ export function App() {
     action
       .then(() => {
         password("");
-        refreshSession();
+        currentUser()
+          .then((nextUser) => {
+            user(nextUser);
+            checking(false);
+            if (nextUser)
+              loadData()
+                .then((data) => applyData(data))
+                .catch((error) => fail(error));
+          })
+          .catch((error) => fail(error));
       })
-      .catch(fail)
+      .catch((error) => fail(error))
       .finally(() => busy(false));
   }
   function logout() {
@@ -387,22 +397,18 @@ export function App() {
         tags([]);
         status("");
       })
-      .catch(fail);
+      .catch((error) => fail(error));
   }
 
   function fail(error) {
     status(error.message ?? String(error));
     busy(false);
   }
-  function reload() {
-    loadData()
-      .then((data) => {
-        notes(data.notes);
-        tags(data.tags);
-        types(data.types);
-        status("");
-      })
-      .catch(fail);
+  function applyData(data) {
+    notes(data.notes);
+    tags(data.tags);
+    types(data.types);
+    status("");
   }
   function openEditor(id) {
     const note = notes().find((item) => item.id === id);
@@ -429,9 +435,11 @@ export function App() {
     createTag(newTag())
       .then(() => {
         newTag("");
-        reload();
+        loadData()
+          .then((data) => applyData(data))
+          .catch((error) => fail(error));
       })
-      .catch(fail)
+      .catch((error) => fail(error))
       .finally(() => busy(false));
   }
   function save(event) {
@@ -441,9 +449,11 @@ export function App() {
     saveMemo(currentNote(), title(), body(), draftTags())
       .then(() => {
         closeEditor();
-        reload();
+        loadData()
+          .then((data) => applyData(data))
+          .catch((error) => fail(error));
       })
-      .catch(fail)
+      .catch((error) => fail(error))
       .finally(() => busy(false));
   }
   function removeMemo() {
@@ -452,9 +462,11 @@ export function App() {
     deleteMemo(editingId())
       .then(() => {
         closeEditor();
-        reload();
+        loadData()
+          .then((data) => applyData(data))
+          .catch((error) => fail(error));
       })
-      .catch(fail)
+      .catch((error) => fail(error))
       .finally(() => busy(false));
   }
   function openExtras() {
@@ -483,9 +495,11 @@ export function App() {
     updateExtra(editingId(), activeExtra(), extraValue())
       .then(() => {
         closeExtras();
-        reload();
+        loadData()
+          .then((data) => applyData(data))
+          .catch((error) => fail(error));
       })
-      .catch(fail)
+      .catch((error) => fail(error))
       .finally(() => busy(false));
   }
 }

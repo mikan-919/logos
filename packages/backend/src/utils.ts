@@ -1,12 +1,18 @@
-import { Ajv2020 } from "ajv/dist/2020.js";
-import { fullFormats } from "ajv-formats/dist/formats.js";
+import { Validator, type Schema } from "@cfworker/json-schema";
 import type { Database, JsonObject, PermissionKey } from "@logos/db";
 import { HTTPException } from "hono/http-exception";
 import type { Kysely } from "kysely";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const keyPattern = /^[a-z][a-z0-9_.-]*$/i;
-export const ajv = new Ajv2020({ allErrors: true, formats: fullFormats });
+
+export function schemaValidator(schema: JsonObject): Validator {
+  try {
+    return new Validator(schema as Schema, "2020-12");
+  } catch {
+    invalid("JSON Schema が不正です");
+  }
+}
 
 export function invalid(message: string): never {
   throw new HTTPException(400, { message });
@@ -121,9 +127,9 @@ export async function validateValue(
     .where("key", "=", typeKey)
     .executeTakeFirst();
   if (!type) throw new HTTPException(404, { message: "Component 型が見つかりません" });
-  const validate = ajv.compile(parseJson(type.schema));
-  if (!validate(value)) {
-    throw new HTTPException(422, { message: ajv.errorsText(validate.errors) });
+  const result = schemaValidator(parseJson(type.schema)).validate(value);
+  if (!result.valid) {
+    throw new HTTPException(422, { message: result.errors.map((error) => error.error).join(", ") });
   }
 }
 

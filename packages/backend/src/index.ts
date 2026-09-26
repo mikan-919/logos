@@ -3,7 +3,6 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { sql, type Kysely } from "kysely";
 import {
-  ajv,
   body,
   entityResponse,
   invalid,
@@ -16,6 +15,7 @@ import {
   revision,
   serializeComponent,
   serializeType,
+  schemaValidator,
   uuid,
   validateValue,
 } from "./utils.ts";
@@ -148,11 +148,7 @@ export function createLogosApi({ db, authenticate }: LogosApiOptions) {
     if (!isObject(input.schema) || input.schema.type !== "object") {
       invalid("schema のルートは object 型にしてください");
     }
-    try {
-      ajv.compile(input.schema);
-    } catch {
-      invalid("JSON Schema が不正です");
-    }
+    schemaValidator(input.schema);
     const inserted = await db
       .insertInto("component_types")
       .values({ key: typeKey, owner_app: ownerApp, schema: JSON.stringify(input.schema) })
