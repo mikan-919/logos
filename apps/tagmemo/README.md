@@ -15,6 +15,8 @@ vp dev
 
 `http://localhost:5173` で画面と API が同時に動く。Cloudflare の Vite 連携が Worker の API を開発環境で実行する。登録画面から利用者を作成できる。SQLite ファイルを使う単独の Bun サーバーは `apps/tagmemo` で `BETTER_AUTH_URL` と `BETTER_AUTH_SECRET` を設定し、`vp run start` で起動する。
 
+Linux では開発用 Worker に OS の認証局一覧を読み込ませる。証明書が信頼できないというエラーが続く環境では、`NODE_EXTRA_CA_CERTS` にその環境の認証局一覧ファイルを指定してから `vp dev` を実行する。
+
 ## Cloudflare Workers への配置
 
 `apps/tagmemo/wrangler.jsonc` の `name` を配置先の Worker 名に合わせる。Cloudflare のアカウントで Wrangler にログインし、Worker に四つの環境変数を登録する。`BETTER_AUTH_URL` には公開する URL（例: `https://logos-tagmemo.<subdomain>.workers.dev`）を指定する。値は対話入力で渡し、ソースコードには保存しない。
