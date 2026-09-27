@@ -5,6 +5,7 @@ type Entity = {
 };
 type Memo = { id: string; components: Entity["components"] };
 type ComponentType = { key: string; schema?: { properties?: Record<string, { type: string }> } };
+export type TagState = { id: string; state: "off" | "auto" | "on"; score: number };
 
 async function api(
   path: string,
@@ -81,7 +82,13 @@ export async function loadData(fetcher = fetch) {
   }));
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
   const notes = memoEntities.map((entity) => {
-    const tagIds: string[] = component(entity, "tagmemo.tags")?.value.entities ?? [];
+    const legacyTagIds: string[] = component(entity, "tagmemo.tags")?.value.entities ?? [];
+    const savedStates: TagState[] | undefined = component(entity, "tagmemo.tag-states")?.value
+      .states;
+    const tagStates = (
+      savedStates ?? legacyTagIds.map((id) => ({ id, state: "on", score: 1 }))
+    ).filter((tag) => tagNames.has(tag.id));
+    const tagIds = tagStates.filter((tag) => tag.state !== "off").map((tag) => tag.id);
     const body = readMemoBody(component(entity, "tagmemo.memo")?.value.body ?? "");
     return {
       id: entity.id,
@@ -94,6 +101,7 @@ export async function loadData(fetcher = fetch) {
       body: body.text,
       bodyHtml: body.html,
       tagIds,
+      tagStates,
       tagLabels: tagIds.map((id) => ({ id, name: tagNames.get(id) ?? "不明なタグ" })),
       components: entity.components,
     };
@@ -121,26 +129,70 @@ export async function createTag(name: string): Promise<string> {
   ]);
 }
 
+export async function renameTag(tagId: string, name: string): Promise<void> {
+  const entity: Entity = await api(`/entities/${tagId}`);
+  const existing = component(entity, "logos.name");
+  if (!existing) throw new Error("タグ名が見つかりません");
+  await api(`/entities/${tagId}/components/logos.name`, "PUT", {
+    value: { value: name.trim() },
+    revision: existing.revision,
+  });
+}
+
+export async function mergeOrDeleteTag(
+  notes: {
+    id: string;
+    title: string;
+    body: string;
+    bodyHtml: string;
+    tagStates: TagState[];
+    components: Entity["components"];
+  }[],
+  sourceId: string,
+  targetId: string | null,
+): Promise<void> {
+  for (const note of notes) {
+    const source = note.tagStates.find((tag) => tag.id === sourceId);
+    if (!source) continue;
+    const states = note.tagStates.filter((tag) => tag.id !== sourceId).map((tag) => ({ ...tag }));
+    if (targetId) {
+      const target = states.find((tag) => tag.id === targetId);
+      if (!target) states.push({ ...source, id: targetId });
+      else if (source.state === "on" && target.state !== "on") {
+        target.state = "on";
+        target.score = 1;
+      }
+    }
+    const ids = states.filter((tag) => tag.state !== "off").map((tag) => tag.id);
+    await saveMemo(note, note.title, writeMemoBody(note.body, note.bodyHtml), ids, states);
+  }
+  await deleteMemo(sourceId);
+}
+
 export async function saveMemo(
   note: Memo | null,
   title: string,
   body: string,
   tagIds: string[],
+  tagStates: TagState[] = tagIds.map((id) => ({ id, state: "on", score: 1 })),
 ): Promise<string> {
   const name = { value: title.trim() };
   const memo = { body };
   const tags = { entities: tagIds };
+  const states = { entities: tagStates.map((tag) => tag.id), states: tagStates };
   if (!note) {
     return createEntity([
       ["logos.name", name],
       ["tagmemo.memo", memo],
       ["tagmemo.tags", tags],
+      ["tagmemo.tag-states", states],
     ]);
   }
   const parts: [string, Record<string, unknown>][] = [
     ["logos.name", name],
     ["tagmemo.memo", memo],
     ["tagmemo.tags", tags],
+    ["tagmemo.tag-states", states],
   ];
   for (const [typeKey, value] of parts) {
     const existing = component(note, typeKey);

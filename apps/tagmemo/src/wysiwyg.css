@@ -169,6 +169,10 @@
     transform 0.25s var(--ease),
     background 0.18s;
 }
+.toggle svg {
+  width: 12px;
+  height: 12px;
+}
 .toggle:hover {
   background: #333;
   color: var(--text);

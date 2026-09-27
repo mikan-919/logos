@@ -1,4 +1,5 @@
 import { loadData } from "./data.ts";
+import type { TagState } from "./data.ts";
 
 export interface InitialData {
   user: { id: string };
@@ -10,6 +11,7 @@ export interface InitialData {
     createdAt?: string;
     updatedAt?: string;
     tagIds: string[];
+    tagStates?: TagState[];
     tagLabels: { id: string; name: string }[];
     components: unknown[];
   }[];

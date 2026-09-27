@@ -20,6 +20,7 @@ const allowedClasses = new Set([
   "summary-detail",
   "summary-detail-clip",
   "summary-detail-inner",
+  "open",
 ]);
 
 function clean(node) {
@@ -44,15 +45,17 @@ function cleanHtml(html) {
 function summaryNode(label, detail) {
   const node = document.createElement("span");
   node.className = "summary-node open";
+  node.contentEditable = "false";
   const head = document.createElement("span");
   head.className = "summary-head";
   const toggle = document.createElement("button");
   toggle.className = "toggle";
   toggle.type = "button";
-  toggle.textContent = "›";
-  toggle.setAttribute("aria-label", "要約を閉じる");
+  toggle.innerHTML =
+    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const text = document.createElement("span");
   text.className = "summary-text";
+  text.contentEditable = "true";
   text.textContent = label;
   const meta = document.createElement("span");
   meta.className = "summary-meta";
@@ -64,6 +67,7 @@ function summaryNode(label, detail) {
   clip.className = "summary-detail-clip";
   const inner = document.createElement("span");
   inner.className = "summary-detail-inner";
+  inner.contentEditable = "true";
   inner.append(detail);
   clip.append(inner);
   body.append(clip);
@@ -74,77 +78,70 @@ function summaryNode(label, detail) {
 function flatten(fragment) {
   const result = document.createDocumentFragment();
   const visit = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      result.append(document.createTextNode(node.textContent ?? ""));
-      return;
-    }
+    if (node.nodeType === Node.TEXT_NODE)
+      return result.append(document.createTextNode(node.textContent ?? ""));
     if (node.nodeType !== Node.ELEMENT_NODE) return;
-    if (node.classList.contains("summary-node")) {
-      result.append(clean(node));
-      return;
-    }
-    const block = ["P", "DIV", "H1", "H2", "LI", "BLOCKQUOTE"].includes(node.tagName);
-    if (block && result.childNodes.length) result.append(document.createTextNode(" "));
+    if (node.classList.contains("summary-node")) return result.append(clean(node));
+    if (["P", "DIV", "H1", "H2", "LI"].includes(node.tagName) && result.childNodes.length)
+      result.append(document.createTextNode(" "));
     if (["B", "STRONG", "I", "EM"].includes(node.tagName)) {
       const mark = document.createElement(node.tagName.toLowerCase());
       for (const child of node.childNodes) mark.append(clean(child));
       result.append(mark);
-    } else {
-      for (const child of node.childNodes) visit(child);
-    }
+    } else for (const child of node.childNodes) visit(child);
   };
   for (const child of fragment.childNodes) visit(child);
   return result;
 }
 
+function wireSummaryNodes(root) {
+  for (const node of root.querySelectorAll(".summary-node")) {
+    node.setAttribute("contenteditable", "false");
+    node
+      .querySelector(":scope > .summary-head > .summary-text")
+      ?.setAttribute("contenteditable", "true");
+    node
+      .querySelector(":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner")
+      ?.setAttribute("contenteditable", "true");
+    const toggle = node.querySelector(":scope > .summary-head > .toggle");
+    toggle?.setAttribute("aria-expanded", String(node.classList.contains("open")));
+    toggle?.setAttribute(
+      "aria-label",
+      node.classList.contains("open") ? "要約を閉じる" : "要約を開く",
+    );
+  }
+}
+
 export function setupWysiwyg() {
-  const root = document.querySelector(".spa-editor") as HTMLElement;
-  const doc = document.getElementById("memo-document") as HTMLElement;
-  const title = document.getElementById("memo-title") as HTMLInputElement;
+  const root = document.getElementById("scroll-root") as HTMLElement;
   const menu = document.getElementById("selection-menu") as HTMLElement;
   const modal = document.getElementById("summary-modal") as HTMLElement;
   const input = document.getElementById("summary-input") as HTMLInputElement;
   const preview = document.getElementById("selection-preview") as HTMLElement;
   const crumb = document.getElementById("editor-crumb") as HTMLElement;
   let savedRange = null;
-
-  function wire() {
-    for (const node of doc.querySelectorAll(".summary-node")) {
-      node.setAttribute("contenteditable", "false");
-      node
-        .querySelector(":scope > .summary-head > .summary-text")
-        ?.setAttribute("contenteditable", "true");
-      node
-        .querySelector(":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner")
-        ?.setAttribute("contenteditable", "true");
-      const toggle = node.querySelector(":scope > .summary-head > .toggle");
-      toggle?.setAttribute("aria-expanded", String(node.classList.contains("open")));
-      toggle?.setAttribute(
-        "aria-label",
-        node.classList.contains("open") ? "要約を閉じる" : "要約を開く",
-      );
-    }
-  }
-
-  function bodyNodes() {
-    return [...doc.childNodes];
-  }
+  let selectedDoc = null;
+  const activeDoc = () =>
+    root.querySelector(".stream-note.active .stream-doc") as HTMLElement | null;
+  const activeTitle = () =>
+    root.querySelector(".stream-note.active .stream-title") as HTMLInputElement | null;
 
   function selectionRange() {
     const selection = window.getSelection();
     if (!selection?.rangeCount || selection.isCollapsed || !selection.toString().trim())
       return null;
     const range = selection.getRangeAt(0);
-    if (!doc.contains(range.commonAncestorContainer)) return null;
+    const origin =
+      range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.commonAncestorContainer as Element)
+        : range.commonAncestorContainer.parentElement;
+    const doc = origin?.closest(".stream-doc");
+    if (!doc) return null;
+    selectedDoc = doc;
     return range;
   }
-
   function showMenu() {
-    if (
-      !doc.closest(".spa-notes-work:not([data-hidden='true'])") ||
-      modal.classList.contains("show")
-    )
-      return menu.classList.remove("show");
+    if (modal.classList.contains("show")) return menu.classList.remove("show");
     const range = selectionRange();
     if (!range) return menu.classList.remove("show");
     const rect = range.getBoundingClientRect();
@@ -153,41 +150,31 @@ export function setupWysiwyg() {
     menu.style.top = Math.max(8, rect.top - 46) + "px";
     menu.classList.add("show");
   }
-
   function closeSummary() {
     modal.classList.remove("show");
     savedRange = null;
-    doc.focus();
+    selectedDoc?.focus();
   }
-
   function openSummary() {
     const range = selectionRange();
     if (!range) return;
     savedRange = range.cloneRange();
-    preview.textContent = window.getSelection().toString().trim();
+    preview.textContent = window.getSelection()?.toString().trim() ?? "";
     input.value = "";
     menu.classList.remove("show");
     modal.classList.add("show");
     input.focus();
   }
-
   function createSummary() {
     const label = input.value.trim();
-    if (!label || !savedRange) return;
+    if (!label || !savedRange || !selectedDoc) return;
     const range = savedRange;
     const node = summaryNode(label, flatten(range.extractContents()));
     range.insertNode(node);
-    wire();
-    const after = document.createRange();
-    after.setStartAfter(node);
-    after.collapse(true);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(after);
+    wireSummaryNodes(selectedDoc);
     closeSummary();
-    doc.dispatchEvent(new Event("input", { bubbles: true }));
+    selectedDoc.dispatchEvent(new Event("input", { bubbles: true }));
   }
-
   root.addEventListener("mousedown", (event) => {
     if (
       (event.target as Element).closest("[data-editor-command], [data-editor-action='summarize']")
@@ -199,19 +186,15 @@ export function setupWysiwyg() {
     const toggle = target.closest(".summary-head > .toggle");
     if (toggle) {
       const node = toggle.closest(".summary-node");
-      node.classList.toggle("open");
-      wire();
-      doc.dispatchEvent(new Event("input", { bubbles: true }));
+      node?.classList.toggle("open");
+      wireSummaryNodes(root);
+      node?.closest(".stream-doc")?.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
     const command = (target.closest("[data-editor-command]") as HTMLElement)?.dataset.editorCommand;
     if (command) {
-      document.execCommand(
-        command.startsWith("h") ? "formatBlock" : command,
-        false,
-        command.startsWith("h") ? command : null,
-      );
-      doc.focus();
+      document.execCommand(command, false);
+      selectedDoc?.focus();
       return;
     }
     switch ((target.closest("[data-editor-action]") as HTMLElement)?.dataset.editorAction) {
@@ -224,18 +207,39 @@ export function setupWysiwyg() {
       case "cancel":
         closeSummary();
         break;
-      case "expand":
-      case "collapse": {
-        const open =
-          (target.closest("[data-editor-action]") as HTMLElement).dataset.editorAction === "expand";
-        doc
-          .querySelectorAll(".summary-node")
-          .forEach((node) => node.classList.toggle("open", open));
-        wire();
-        doc.dispatchEvent(new Event("input", { bubbles: true }));
-        break;
-      }
     }
+  });
+  root.addEventListener("paste", (event) => {
+    if (!(event.target as Element).closest(".stream-doc")) return;
+    event.preventDefault();
+    document.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "");
+  });
+  root.addEventListener("dragover", (event) => {
+    if ((event.target as Element).closest(".stream-doc")) event.preventDefault();
+  });
+  root.addEventListener("drop", (event) => {
+    if ((event.target as Element).closest(".stream-doc")) event.preventDefault();
+  });
+  root.addEventListener("focusin", (event) => {
+    const node = (event.target as Element).closest(".summary-node");
+    if (!node) return crumb.classList.remove("show");
+    let depth = 1;
+    for (
+      let parent = node.parentElement?.closest(".summary-node");
+      parent;
+      parent = parent.parentElement?.closest(".summary-node")
+    )
+      depth++;
+    crumb.textContent = `深さ ${depth}`;
+    crumb.classList.add("show");
+  });
+  document.addEventListener("selectionchange", showMenu);
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+      event.preventDefault();
+      openSummary();
+    }
+    if (event.key === "Escape" && modal.classList.contains("show")) closeSummary();
   });
   modal.addEventListener("click", (event) => {
     if (event.target === modal) closeSummary();
@@ -250,79 +254,64 @@ export function setupWysiwyg() {
       closeSummary();
     }
   });
-  doc.addEventListener("paste", (event) => {
-    event.preventDefault();
-    document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
-  });
-  doc.addEventListener("dragover", (event) => event.preventDefault());
-  doc.addEventListener("drop", (event) => event.preventDefault());
-  doc.addEventListener("focusin", (event) => {
-    const node = (event.target as Element).closest(".summary-node");
-    if (!node) return crumb.classList.remove("show");
-    let depth = 1;
-    for (
-      let parent = node.parentElement?.closest(".summary-node");
-      parent;
-      parent = parent.parentElement?.closest(".summary-node")
-    )
-      depth++;
-    crumb.textContent = `深さ ${depth}`;
-    crumb.classList.add("show");
-  });
-  doc.addEventListener("focusout", () =>
-    setTimeout(() => {
-      if (!doc.contains(document.activeElement)) crumb.classList.remove("show");
-    }, 0),
-  );
-  document.addEventListener("selectionchange", showMenu);
-  document.addEventListener("keydown", (event) => {
-    if (!doc.closest(".spa-notes-work:not([data-hidden='true'])")) return;
-    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "m") {
-      event.preventDefault();
-      openSummary();
-    }
-    if (event.key === "Escape" && modal.classList.contains("show")) {
-      event.preventDefault();
-      closeSummary();
-    }
-  });
 
-  return {
-    set(title, text, html) {
-      const titleInput = document.getElementById("memo-title") as HTMLInputElement;
-      titleInput.value = title;
+  function set(note) {
+    const doc = activeDoc();
+    if (!doc) return;
+    const title = activeTitle();
+    if (title) title.value = note?.title ?? "";
+    doc.replaceChildren();
+    if (note?.bodyHtml) doc.append(cleanHtml(note.bodyHtml));
+    else if (note?.body)
+      for (const line of note.body.split("\n")) {
+        const p = document.createElement("p");
+        p.textContent = line;
+        doc.append(p);
+      }
+    wireSummaryNodes(doc);
+    doc.dataset.hydrated = "true";
+    menu.classList.remove("show");
+    modal.classList.remove("show");
+    savedRange = null;
+  }
+  function sync(notes) {
+    for (const note of notes) {
+      const doc = [...root.querySelectorAll(".stream-doc")].find(
+        (element) => element.getAttribute("data-doc-id") === (note.id || "draft"),
+      );
+      if (!doc || (doc as HTMLElement).dataset.hydrated) continue;
       doc.replaceChildren();
-      if (html) doc.append(cleanHtml(html));
-      else
-        for (const line of (text || "").split("\n")) {
+      if (note.bodyHtml) doc.append(cleanHtml(note.bodyHtml));
+      else if (note.body)
+        for (const line of note.body.split("\n")) {
           const p = document.createElement("p");
           p.textContent = line;
           doc.append(p);
         }
-      wire();
-      menu.classList.remove("show");
-      modal.classList.remove("show");
-      savedRange = null;
-    },
-    get() {
-      const fragment = document.createElement("div");
-      for (const node of bodyNodes()) fragment.append(clean(node));
-      const plain = fragment.cloneNode(true) as HTMLElement;
-      for (const node of [...plain.querySelectorAll(".summary-node")].reverse()) {
-        const detail = node.querySelector(
-          ":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner",
-        );
-        node.replaceWith(...(detail ? [...detail.childNodes] : []));
-      }
-      return {
-        title: title.value.trim(),
-        text: [...plain.childNodes]
-          .map((node) => node.textContent)
-          .join("\n")
-          .trim(),
-        html: fragment.innerHTML,
-      };
-    },
-    openSummary,
-  };
+      wireSummaryNodes(doc);
+      (doc as HTMLElement).dataset.hydrated = "true";
+    }
+  }
+  function get() {
+    const doc = activeDoc();
+    if (!doc) return { title: "", text: "", html: "" };
+    const fragment = document.createElement("div");
+    for (const node of doc.childNodes) fragment.append(clean(node));
+    const plain = fragment.cloneNode(true) as HTMLElement;
+    for (const node of [...plain.querySelectorAll(".summary-node")].reverse()) {
+      const detail = node.querySelector(
+        ":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner",
+      );
+      node.replaceWith(...(detail ? [...detail.childNodes] : []));
+    }
+    return {
+      title: activeTitle()?.value.trim() ?? "",
+      text: [...plain.childNodes]
+        .map((node) => node.textContent)
+        .join("\n")
+        .trim(),
+      html: fragment.innerHTML,
+    };
+  }
+  return { set, sync, get, openSummary };
 }

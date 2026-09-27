@@ -1,4 +1,5 @@
 import { render } from "irisout";
+import { Icon } from "./Icon.tsx";
 
 export function ExtrasDialog({
   extras,
@@ -23,7 +24,7 @@ export function ExtrasDialog({
             <h2>Component</h2>
           </div>
           <button class="icon-button" type="button" aria-label="閉じる" onClick={onClose}>
-            ×
+            <Icon name="x" />
           </button>
         </div>
         <label for="component-select">編集する Component</label>

@@ -6,26 +6,32 @@ import {
   deleteMemo,
   editableExtras,
   loadData,
+  mergeOrDeleteTag,
+  renameTag,
   saveMemo,
   updateExtra,
   writeMemoBody,
 } from "./data.ts";
-import { setupWysiwyg } from "./wysiwyg.ts";
 import { filterNotes } from "./filter-notes.ts";
+import { relatedOrder, tagCandidates } from "./tag-model.ts";
+import { setupWysiwyg } from "./wysiwyg.ts";
 import { AuthScreen } from "./components/AuthScreen.tsx";
 import { ExtrasDialog } from "./components/ExtrasDialog.tsx";
-import { InlineEditor } from "./components/InlineEditor.tsx";
-import { NoteList } from "./components/NoteList.tsx";
-import { SpaNavigation } from "./components/SpaNavigation.tsx";
-import { SpaTopbar } from "./components/SpaTopbar.tsx";
-import { TagDrawer } from "./components/TagDrawer.tsx";
-import { TagsPage } from "./components/TagsPage.tsx";
+import { NoteStream } from "./components/NoteStream.tsx";
+import { StreamDock } from "./components/StreamDock.tsx";
+import { StreamLibrary } from "./components/StreamLibrary.tsx";
+import { StreamTopbar } from "./components/StreamTopbar.tsx";
+import { TagStateDrawer } from "./components/TagStateDrawer.tsx";
 
 const first = initialData();
-const editorState = { current: null, timer: null };
+const initialNotes = (first?.notes ?? []).map((note) => ({
+  ...note,
+  tagStates: note.tagStates ?? note.tagIds.map((id) => ({ id, state: "on", score: 1 })),
+}));
+const editorState = { current: null, timer: null, suppressScrollUntil: 0 };
 
 export function App() {
-  const notes = signal(first?.notes ?? []);
+  const notes = signal(initialNotes);
   const tags = signal(first?.tags ?? []);
   const types = signal(first?.types ?? []);
   const user = signal(first?.user ?? null);
@@ -36,32 +42,40 @@ export function App() {
   const displayName = signal("");
   const status = signal("");
   const busy = signal(false);
-  const view = signal("all");
-  const selectedTag = signal("");
-  const selectedId = signal(first?.notes[0]?.id ?? "");
-  const draftNew = signal(null);
-  const draftTags = signal(first?.notes[0]?.tagIds ?? []);
-  const search = signal("");
-  const sort = signal("updated");
-  const listVisible = signal(true);
-  const mobileNavOpen = signal(false);
-  const drawerOpen = signal(false);
-  const tagQuery = signal("");
-  const newTag = signal("");
   const dirty = signal(false);
+  const selectedId = signal(first?.notes[0]?.id ?? "");
+  const activeTitle = signal(first?.notes[0]?.title ?? "");
+  const streamSeed = signal(first?.notes[0]?.id ?? "");
+  const draftNew = signal(null);
+  const tagStates = signal(
+    first?.notes[0]?.tagStates ??
+      first?.notes[0]?.tagIds?.map((id) => ({ id, state: "on", score: 1 })) ??
+      [],
+  );
+  const libraryOpen = signal(false);
+  const libraryMode = signal("notes");
+  const libraryFilter = signal("all");
+  const libraryTag = signal("");
+  const librarySort = signal("updated");
+  const libraryQuery = signal("");
+  const drawerOpen = signal(false);
+  const accountOpen = signal(false);
   const extraKey = signal("");
   const extraValue = signal({});
 
   const currentNote = derived(
     () => draftNew() ?? notes().find((note) => note.id === selectedId()) ?? null,
   );
-  const filteredNotes = derived(() =>
-    filterNotes(notes(), view(), selectedTag(), search(), sort()),
+  const streamNotes = derived(() =>
+    draftNew()
+      ? [draftNew(), ...relatedOrder(notes(), streamSeed())]
+      : relatedOrder(notes(), streamSeed()),
   );
-  const listTitle = derived(() =>
-    view() === "tag"
-      ? `#${tags().find((tag) => tag.id === selectedTag())?.name ?? "タグ"}`
-      : ({ all: "すべてのメモ", recent: "最近", untagged: "タグなし" }[view()] ?? "すべてのメモ"),
+  const libraryNotes = derived(() =>
+    filterNotes(notes(), libraryFilter(), libraryTag(), libraryQuery(), librarySort()),
+  );
+  const candidates = derived(() =>
+    currentNote() ? tagCandidates({ ...currentNote(), tagStates: tagStates() }, tags()) : [],
   );
   const extras = derived(() => editableExtras(currentNote(), types()));
   const activeExtra = derived(() => extras().find((item) => item.type_key === extraKey()));
@@ -89,92 +103,73 @@ export function App() {
         onPassword={password}
         onDisplayName={displayName}
       />
-      <div class="spa-app" data-hidden={!user()}>
-        <SpaNavigation
-          notes={notes}
-          tags={tags}
-          view={view}
-          selectedTag={selectedTag}
-          mobileOpen={mobileNavOpen}
-          onView={chooseView}
-          onTag={chooseTag}
-          onManage={() => {
-            view("tags");
-            mobileNavOpen(false);
-          }}
-          onNew={newMemo}
+      <div class="stream-app" data-hidden={!user()}>
+        <StreamTopbar
+          title={activeTitle}
+          dirty={dirty}
+          busy={busy}
+          user={user}
+          accountOpen={accountOpen}
+          onLibrary={openLibrary}
+          onSummary={() => editorState.current?.openSummary()}
+          onTags={toggleDrawer}
+          onSave={save}
+          onAccount={() => accountOpen(!accountOpen())}
           onLogout={logout}
         />
-        <section class="spa-shell">
-          <SpaTopbar
-            search={search}
-            onSearch={updateSearch}
-            onToggleList={toggleList}
-            onSave={save}
-            onSummarize={() => {
-              editorState.current?.openSummary();
-            }}
-            onTags={() => {
-              drawerOpen(true);
-            }}
-            onNew={newMemo}
-            onLogout={logout}
-            showingTags={() => view() === "tags"}
-            busy={busy}
-            dirty={dirty}
-          />
-          <div class={listVisible() ? "spa-work" : "spa-work list-hidden"}>
-            <div data-hidden={view() === "tags"} class="spa-notes-work">
-              <NoteList
-                notes={filteredNotes}
-                title={listTitle}
-                selectedId={selectedId}
-                sort={sort}
-                onSort={sort}
-                onSelect={selectNote}
-                visible={listVisible}
-              />
-              <InlineEditor
-                note={currentNote}
-                tags={tags}
-                draftTags={draftTags}
-                onTitleInput={markDirty}
-                onInput={markDirty}
-                onToggleTag={toggleTag}
-                onOpenTagPicker={() => {
-                  drawerOpen(true);
-                }}
-                onDelete={removeMemo}
-                onExtras={openExtras}
-                extrasCount={() => extras().length}
-              />
-            </div>
-            <div data-hidden={view() !== "tags"} class="spa-tags-work">
-              <TagsPage
-                tags={tags}
-                notes={notes}
-                query={tagQuery}
-                onQuery={tagQuery}
-                newTag={newTag}
-                onNewTag={newTag}
-                onCreate={addTag}
-                onOpenTag={chooseTag}
-              />
-            </div>
-            <TagDrawer
-              open={drawerOpen}
-              tags={tags}
-              draftTags={draftTags}
-              onClose={() => {
-                drawerOpen(false);
-              }}
-              onToggleTag={toggleTag}
-            />
-          </div>
-          <p class="spa-status" role="status" data-hidden={!status()}>
-            {status()}
-          </p>
-        </section>
+        <NoteStream
+          notes={streamNotes}
+          onScroll={followScroll}
+          activeId={selectedId}
+          onActivate={activateNote}
+          onTitleInput={editTitle}
+          onBodyInput={editBody}
+          onRemoveTag={(id) => setTagState({ id, score: 0 }, "off")}
+          onAddTag={addTagToNote}
+          onDelete={removeMemo}
+          onExtras={openExtras}
+          extrasCount={() => extras().length}
+        />
+        <StreamDock onLibrary={openLibrary} onTags={toggleDrawer} onNew={newMemo} />
+        <StreamLibrary
+          open={libraryOpen}
+          mode={libraryMode}
+          filter={libraryFilter}
+          selectedTag={libraryTag}
+          sort={librarySort}
+          query={libraryQuery}
+          notes={libraryNotes}
+          allNotes={notes}
+          tags={tags}
+          activeId={selectedId}
+          onClose={() => libraryOpen(false)}
+          onMode={libraryMode}
+          onFilter={(value) => {
+            libraryFilter(value);
+            libraryTag("");
+          }}
+          onTagFilter={(id) => {
+            libraryTag(id);
+            libraryFilter("tag");
+          }}
+          onSort={librarySort}
+          onQuery={libraryQuery}
+          onSelect={selectFromLibrary}
+          onCreateTag={addTagFromLibrary}
+          onRenameTag={renameTagFromLibrary}
+          onMergeTag={mergeTagFromLibrary}
+          onDeleteTag={deleteTagFromLibrary}
+        />
+        <TagStateDrawer
+          open={drawerOpen}
+          note={currentNote}
+          candidates={candidates}
+          onClose={() => drawerOpen(false)}
+          onState={setTagState}
+        />
+        <p class="stream-status" role="status" data-hidden={!status()}>
+          {status()}
+        </p>
       </div>
       <ExtrasDialog
         extras={extras}
@@ -194,10 +189,8 @@ export function App() {
   );
 
   onMount(() => {
-    if (window.matchMedia("(max-width: 650px)").matches) listVisible(false);
     editorState.current = setupWysiwyg();
-    const selected = notes().find((note) => note.id === selectedId());
-    editorState.current.set(selected?.title ?? "", selected?.body ?? "", selected?.bodyHtml ?? "");
+    editorState.current.sync(streamNotes());
     if (first) checking(false);
     else
       currentUser()
@@ -212,9 +205,23 @@ export function App() {
         event.preventDefault();
         save();
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openLibrary();
+      }
+      if (event.key === "Escape") {
+        libraryOpen(false);
+        drawerOpen(false);
+        accountOpen(false);
+      }
     });
   });
 
+  function fail(error) {
+    status(error?.message ?? String(error));
+    busy(false);
+    checking(false);
+  }
   function switchAuth() {
     authMode(authMode() === "signin" ? "signup" : "signin");
     status("");
@@ -236,65 +243,104 @@ export function App() {
         notes([]);
         tags([]);
         status("");
-        mobileNavOpen(false);
       })
       .catch(fail);
   }
-  function fail(error) {
-    status(error?.message ?? String(error));
-    busy(false);
-    checking(false);
-  }
   function applyData(data) {
-    notes(data.notes);
+    const edited = dirty() && selectedId() ? editorState.current?.get() : null;
+    const nextNotes = edited
+      ? data.notes.map((note) =>
+          note.id === selectedId()
+            ? {
+                ...note,
+                title: edited.title || "無題",
+                body: edited.text,
+                bodyHtml: edited.html,
+                tagStates: tagStates(),
+                tagIds: tagStates()
+                  .filter((tag) => tag.state !== "off")
+                  .map((tag) => tag.id),
+                tagLabels: tags()
+                  .filter((tag) =>
+                    tagStates().some((entry) => entry.id === tag.id && entry.state !== "off"),
+                  )
+                  .map((tag) => ({ id: tag.id, name: tag.name })),
+              }
+            : note,
+        )
+      : data.notes;
+    notes(nextNotes);
     tags(data.tags);
     types(data.types);
-    status("");
-    if (!selectedId() && !draftNew() && data.notes.length) {
-      selectedId(data.notes[0].id);
-      editorState.current?.set(data.notes[0].title, data.notes[0].body, data.notes[0].bodyHtml);
-      draftTags(data.notes[0].tagIds);
+    if (!draftNew()) {
+      const selected = nextNotes.find((note) => note.id === selectedId()) ?? nextNotes[0];
+      selectedId(selected?.id ?? "");
+      if (!edited) {
+        activeTitle(selected?.title ?? "");
+        tagStates(selected?.tagStates ?? []);
+      }
+      if (!streamSeed()) streamSeed(selected?.id ?? "");
     }
+    requestAnimationFrame(() => editorState.current?.sync(streamNotes()));
   }
-  function chooseView(next) {
-    view(next);
-    selectedTag("");
-    drawerOpen(false);
-    mobileNavOpen(false);
-    if (window.innerWidth <= 650) listVisible(true);
+  function openLibrary() {
+    accountOpen(false);
+    libraryMode("notes");
+    libraryOpen(true);
   }
-  function chooseTag(id) {
-    selectedTag(id);
-    view("tag");
-    drawerOpen(false);
-    mobileNavOpen(false);
-    if (window.innerWidth <= 650) listVisible(true);
+  function toggleDrawer() {
+    drawerOpen(!drawerOpen());
+    accountOpen(false);
   }
-  function toggleList() {
-    if (window.innerWidth <= 650) mobileNavOpen(!mobileNavOpen());
-    else listVisible(!listVisible());
+  function followScroll(event) {
+    if (performance.now() < editorState.suppressScrollUntil) return;
+    const root = event.currentTarget;
+    const box = root.getBoundingClientRect();
+    const target = box.top + box.height * 0.42;
+    const nearest = [...root.querySelectorAll(".stream-note")]
+      .filter((section) => {
+        const rect = section.getBoundingClientRect();
+        return rect.bottom >= box.top && rect.top <= box.bottom;
+      })
+      .map((section) => {
+        const rect = section.getBoundingClientRect();
+        return { section, gap: Math.max(rect.top - target, target - rect.bottom, 0) };
+      })
+      .sort((a, b) => a.gap - b.gap)[0]?.section;
+    const id = nearest?.getAttribute("data-note-id");
+    if (id && id !== "draft" && id !== selectedId()) activateNote(id);
   }
-  function updateSearch(value) {
-    search(value);
-    if (view() === "tags") tagQuery(value);
-  }
-  function selectNote(id) {
+  function activateNote(id) {
     if (selectedId() === id && !draftNew()) return;
-    clearTimeout(editorState.timer);
     if (dirty()) save();
     const note = notes().find((item) => item.id === id);
     if (note) {
       draftNew(null);
       selectedId(id);
-      draftTags(note.tagIds);
-      editorState.current.set(note.title, note.body, note.bodyHtml);
-      dirty(false);
-      drawerOpen(false);
-      listVisible(false);
+      activeTitle(note.title);
+      tagStates(note.tagStates ?? []);
+      accountOpen(false);
     }
   }
+  function selectFromLibrary(id) {
+    const note = notes().find((item) => item.id === id);
+    if (!note) return;
+    if (dirty()) save();
+    streamSeed(id);
+    draftNew(null);
+    selectedId(id);
+    activeTitle(note.title);
+    tagStates(note.tagStates ?? []);
+    libraryOpen(false);
+    editorState.suppressScrollUntil = performance.now() + 650;
+    requestAnimationFrame(() => {
+      editorState.current?.sync(streamNotes());
+      document
+        .querySelector(`.stream-note[data-note-id="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ block: "start" });
+    });
+  }
   function newMemo() {
-    clearTimeout(editorState.timer);
     if (dirty()) save();
     const note = {
       id: "",
@@ -302,20 +348,38 @@ export function App() {
       body: "",
       bodyHtml: "",
       tagIds: [],
+      tagStates: [],
       tagLabels: [],
       components: [],
       pending: true,
     };
     draftNew(note);
     selectedId("");
-    draftTags([]);
-    view("all");
+    activeTitle("");
+    tagStates([]);
+    libraryOpen(false);
     drawerOpen(false);
-    mobileNavOpen(false);
-    listVisible(false);
-    editorState.current.set("", "", "");
-    dirty(false);
-    document.getElementById("memo-title")?.focus();
+    editorState.suppressScrollUntil = performance.now() + 650;
+    requestAnimationFrame(() => {
+      editorState.current?.sync(streamNotes());
+      document
+        .querySelector(".stream-note[data-note-id='draft']")
+        ?.scrollIntoView({ block: "start" });
+      (
+        document.querySelector(
+          ".stream-note[data-note-id='draft'] .stream-title",
+        ) as HTMLInputElement
+      )?.focus();
+    });
+  }
+  function editTitle(id, value) {
+    if (id === selectedId()) {
+      activeTitle(value);
+      markDirty();
+    }
+  }
+  function editBody(id) {
+    if (id === selectedId()) markDirty();
   }
   function markDirty() {
     if (!currentNote()) return;
@@ -323,23 +387,53 @@ export function App() {
     clearTimeout(editorState.timer);
     editorState.timer = setTimeout(save, 650);
   }
-  function toggleTag(id) {
-    draftTags((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
+  function setTagState(tag, state) {
+    const note = currentNote();
+    if (!note) return;
+    const next = [
+      ...tagStates().filter((item) => item.id !== tag.id),
+      { id: tag.id, state, score: state === "on" ? 1 : state === "off" ? 0 : (tag.score ?? 0.5) },
+    ];
+    const ids = next.filter((item) => item.state !== "off").map((item) => item.id);
+    const labels = tags()
+      .filter((item) => ids.includes(item.id))
+      .map((item) => ({ id: item.id, name: item.name }));
+    tagStates(next);
+    if (draftNew()) draftNew({ ...draftNew(), tagStates: next, tagIds: ids, tagLabels: labels });
+    else
+      notes(
+        notes().map((item) =>
+          item.id === note.id ? { ...item, tagStates: next, tagIds: ids, tagLabels: labels } : item,
+        ),
+      );
     markDirty();
   }
-  function addTag(event) {
-    event.preventDefault();
-    const name = newTag().trim();
-    if (!name || busy()) return;
+  function addTagToNote() {
+    const name = prompt("タグ名")?.trim().replace(/^#/, "");
+    if (!name) return;
+    const existing = tags().find(
+      (tag) => tag.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    if (existing) setTagState({ id: existing.id, score: 1 }, "on");
+    else {
+      busy(true);
+      createTag(name)
+        .then(async (id) => {
+          applyData(await loadData());
+          busy(false);
+          setTagState({ id, score: 1 }, "on");
+        })
+        .catch(fail);
+    }
+  }
+  function addTagFromLibrary() {
+    const name = prompt("新しいタグ名")?.trim().replace(/^#/, "");
+    if (!name || tags().some((tag) => tag.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
+      return;
     busy(true);
     createTag(name)
       .then(() => loadData())
-      .then((data) => {
-        applyData(data);
-        newTag("");
-      })
+      .then(applyData)
       .catch(fail)
       .finally(() => busy(false));
   }
@@ -352,47 +446,29 @@ export function App() {
     }
     const value = editorState.current.get();
     const title = value.title || "無題";
-    if (title.length > 200) status("タイトルは200文字以内にしてください");
-    else {
-      const prior = notes();
+    if (title.length > 200) {
+      status("タイトルは200文字以内にしてください");
+    } else {
       const draft = draftNew();
       const existing = draft ? null : notes().find((note) => note.id === selectedId());
-      const ids = [...draftTags()];
-      const pending = {
-        ...currentNote(),
-        title,
-        body: value.text,
-        bodyHtml: value.html,
-        tagIds: ids,
-        tagLabels: tags()
-          .filter((tag) => ids.includes(tag.id))
-          .map((tag) => ({ id: tag.id, name: tag.name })),
-        pending: true,
-      };
-      notes(
-        existing
-          ? prior.map((note) => (note.id === existing.id ? pending : note))
-          : [pending, ...prior],
-      );
+      const states = [...tagStates()];
+      const ids = states.filter((item) => item.state !== "off").map((item) => item.id);
       dirty(false);
       busy(true);
       status("");
-      saveMemo(existing, title, writeMemoBody(value.text, value.html), ids)
-        .then((id) => {
-          if (!existing && draftNew() === draft) {
+      saveMemo(existing, title, writeMemoBody(value.text, value.html), ids, states)
+        .then(async (id) => {
+          if (draft && draftNew() === draft) {
             selectedId(id);
             draftNew(null);
+            streamSeed(id);
           }
-          loadData()
-            .then(applyData)
-            .catch(fail)
-            .finally(() => busy(false));
+          applyData(await loadData());
+          busy(false);
         })
         .catch((error) => {
-          notes(prior);
           dirty(true);
           fail(error);
-          busy(false);
         });
     }
   }
@@ -400,26 +476,59 @@ export function App() {
     const id = selectedId();
     if (!id || busy() || !confirm("このメモを削除しますか？")) return;
     clearTimeout(editorState.timer);
-    const prior = notes();
-    notes(prior.filter((note) => note.id !== id));
-    selectedId("");
-    draftNew(null);
     busy(true);
     deleteMemo(id)
       .then(() => loadData())
-      .then(applyData)
-      .catch((error) => {
-        notes(prior);
-        selectedId(id);
-        fail(error);
+      .then((data) => {
+        selectedId("");
+        streamSeed("");
+        applyData(data);
       })
+      .catch(fail)
+      .finally(() => busy(false));
+  }
+  function renameTagFromLibrary(tag) {
+    const name = prompt("タグを改名", tag.name)?.trim().replace(/^#/, "");
+    if (
+      !name ||
+      name === tag.name ||
+      tags().some((other) => other.id !== tag.id && other.name === name)
+    )
+      return;
+    busy(true);
+    renameTag(tag.id, name)
+      .then(() => loadData())
+      .then(applyData)
+      .catch(fail)
+      .finally(() => busy(false));
+  }
+  function mergeTagFromLibrary(tag) {
+    const name = prompt(`#${tag.name} の統合先タグ名`)?.trim().replace(/^#/, "");
+    const target = tags().find((item) => item.name === name && item.id !== tag.id);
+    if (!target) status("統合先の既存タグを指定してください");
+    else {
+      busy(true);
+      mergeOrDeleteTag(notes(), tag.id, target.id)
+        .then(() => loadData())
+        .then(applyData)
+        .catch(fail)
+        .finally(() => busy(false));
+    }
+  }
+  function deleteTagFromLibrary(tag) {
+    if (!confirm(`#${tag.name} を削除しますか？`)) return;
+    busy(true);
+    mergeOrDeleteTag(notes(), tag.id, null)
+      .then(() => loadData())
+      .then(applyData)
+      .catch(fail)
       .finally(() => busy(false));
   }
   function openExtras() {
-    const first = extras()[0];
-    if (!first) return;
-    extraKey(first.type_key);
-    extraValue({ ...first.value });
+    const firstExtra = extras()[0];
+    if (!firstExtra) return;
+    extraKey(firstExtra.type_key);
+    extraValue({ ...firstExtra.value });
     (document.getElementById("components-dialog") as HTMLDialogElement)?.showModal();
   }
   function closeExtras() {
@@ -435,23 +544,13 @@ export function App() {
   function saveExtra(event) {
     event.preventDefault();
     if (busy() || !activeExtra()) return;
-    const prior = notes();
-    const id = selectedId();
-    const extra = activeExtra();
-    const value = { ...extraValue() };
     busy(true);
-    updateExtra(id, extra, value)
-      .then(() => {
+    updateExtra(selectedId(), activeExtra(), { ...extraValue() })
+      .then(async () => {
         closeExtras();
-        loadData()
-          .then(applyData)
-          .catch(fail)
-          .finally(() => busy(false));
-      })
-      .catch((error) => {
-        notes(prior);
-        fail(error);
+        applyData(await loadData());
         busy(false);
-      });
+      })
+      .catch(fail);
   }
 }

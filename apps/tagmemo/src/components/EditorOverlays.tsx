@@ -1,4 +1,5 @@
 import { render } from "irisout";
+import { Icon } from "./Icon.tsx";
 
 export function EditorSelectionMenu() {
   render(
@@ -7,10 +8,10 @@ export function EditorSelectionMenu() {
         要約
       </button>
       <button type="button" data-editor-command="bold" aria-label="太字">
-        <b>B</b>
+        <Icon name="bold" />
       </button>
       <button type="button" data-editor-command="italic" aria-label="斜体">
-        <i>I</i>
+        <Icon name="italic" />
       </button>
     </div>,
   );

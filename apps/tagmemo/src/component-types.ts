@@ -24,4 +24,29 @@ export const componentTypes = [
       additionalProperties: false,
     },
   },
+  {
+    key: "tagmemo.tag-states",
+    ownerApp: "tagmemo",
+    schema: {
+      type: "object",
+      properties: {
+        entities: { type: "array", items: { type: "string", format: "uuid" } },
+        states: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", format: "uuid" },
+              state: { type: "string", enum: ["off", "auto", "on"] },
+              score: { type: "number", minimum: 0, maximum: 1 },
+            },
+            required: ["id", "state", "score"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["entities", "states"],
+      additionalProperties: false,
+    },
+  },
 ];

@@ -684,10 +684,6 @@ body,
   .spa-newnote {
     font-size: 0 !important;
   }
-  .spa-newnote::after {
-    content: "＋";
-    font-size: 18px;
-  }
   .spa-notes-work {
     grid-template-columns: 250px minmax(0, 1fr);
   }
