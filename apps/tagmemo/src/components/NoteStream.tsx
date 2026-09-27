@@ -137,7 +137,11 @@ export function NoteStream({
       </div>
       <EditorSelectionMenu />
       <EditorSummaryDialog />
-      <div id="editor-crumb" class="editor-crumb" aria-live="polite"></div>
+      <div
+        id="editor-crumb"
+        class="editor-crumb pointer-events-none fixed bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#363636] bg-[#242424] px-[10px] py-[7px] text-[10px] text-[var(--muted)] opacity-0 shadow-[0_14px_42px_#0006] transition-opacity duration-200 [&.show]:opacity-100"
+        aria-live="polite"
+      ></div>
     </main>,
   );
 }

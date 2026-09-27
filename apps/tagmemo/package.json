@@ -15,7 +15,9 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
     "@mizchi/vlmkit": "0.22.0",
+    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "wrangler": "catalog:"

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite-plus";
 import { irisout } from "irisout/vite";
+import tailwindcss from "@tailwindcss/vite";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +15,7 @@ const cloudflare = process.env.VITEST
 export default defineConfig({
   server: { strictPort: true },
   plugins: [
+    tailwindcss(),
     irisout({ entry: "tagmemo/src/App.tsx", container: "#app" }),
     ...(cloudflare
       ? [

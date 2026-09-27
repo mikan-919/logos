@@ -9,6 +9,7 @@ catalog:
   "@cfworker/json-schema": ^4.1.1
   "@cloudflare/vite-plugin": ^1.60.1
   "@libsql/client": ^0.18.0
+  "@tailwindcss/vite": ^4.3.3
   "@types/node": ^24
   ajv: ^8.20.0
   ajv-formats: ^3.0.1
@@ -17,6 +18,7 @@ catalog:
   irisout: ^0.3.0
   kysely: ^0.29.6
   kysely-turso: ^0.1.1
+  tailwindcss: ^4.3.3
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0
