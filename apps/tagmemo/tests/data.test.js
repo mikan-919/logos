@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import { createTag, deleteMemo, loadData, saveMemo } from "../src/data.js";
+import { registerComponentTypes } from "../src/register-types.ts";
 import { setup } from "../../logos/tests/helpers.ts";
 
 test("タグを付けたメモを API 経由で保存・取得・削除できる", async () => {
@@ -11,6 +12,7 @@ test("タグを付けたメモを API 経由で保存・取得・削除できる
     }),
   );
   try {
+    await registerComponentTypes(fetch);
     await loadData();
     const tagId = await createTag("研究");
     const memoId = await saveMemo(null, "設計メモ", "本文", [tagId]);

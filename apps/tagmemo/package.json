@@ -4,17 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "deploy": "wrangler deploy --config ../../apps/dist/logos_tagmemo/wrangler.json",
+    "deploy:check": "wrangler deploy --config ../../apps/dist/logos_tagmemo/wrangler.json --dry-run"
   },
   "dependencies": {
-    "@logos/db": "workspace:*",
     "better-auth": "catalog:",
-    "irisout": "^0.3.4",
-    "kysely": "catalog:"
+    "irisout": "^0.3.4"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
     "@mizchi/vlmkit": "0.22.0",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "wrangler": "catalog:"
   }
 }

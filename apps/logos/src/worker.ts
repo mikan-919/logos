@@ -1,16 +1,14 @@
 import { connectDatabase } from "@logos/db";
 import { createLogosApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
-import { loadInitialData } from "../../tagmemo/src/initial-data.ts";
 import { migrate } from "./migrate.ts";
-import { renderInitialHtml } from "../../tagmemo/src/render-initial.ts";
 
 interface Env {
   TURSO_DATABASE_URL: string;
   TURSO_AUTH_TOKEN: string;
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
-  ASSETS: { fetch(request: Request): Promise<Response> };
+  BETTER_AUTH_ALLOWED_HOSTS?: string;
 }
 
 let application: ReturnType<typeof initialize> | undefined;
@@ -29,9 +27,16 @@ async function initialize(env: Env) {
   }
   const db = await connectDatabase(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
   try {
-    const auth = createAuth(db, env.BETTER_AUTH_URL, env.BETTER_AUTH_SECRET);
+    const auth = createAuth(
+      db,
+      env.BETTER_AUTH_URL,
+      env.BETTER_AUTH_SECRET,
+      env.BETTER_AUTH_ALLOWED_HOSTS?.split(",")
+        .map((host) => host.trim())
+        .filter(Boolean),
+    );
     await migrate(db, auth);
-    return { app: createLogosApp(db, auth), auth, db };
+    return createLogosApp(db, auth);
   } catch (error) {
     await db.destroy();
     throw error;
@@ -44,32 +49,7 @@ export default {
       application = undefined;
       throw error;
     });
-    const { app, auth, db } = await application;
-    const path = new URL(request.url).pathname;
-    if (
-      request.method === "GET" &&
-      (path === "/" || path === "/index.html" || path === "/tagmemo")
-    ) {
-      return Response.redirect(new URL("/tagmemo/", request.url), 302);
-    }
-    if (request.method === "GET" && (path === "/tagmemo/" || path === "/tagmemo/index.html")) {
-      const asset = await env.ASSETS.fetch(
-        new Request(new URL("/tagmemo/index.html", request.url)),
-      );
-      if (!asset.ok) return asset;
-      const session = await auth.api.getSession({ headers: request.headers });
-      if (!session) return asset;
-      const data = await loadInitialData(db, session.user.id);
-      const headers = new Headers(asset.headers);
-      headers.set("Cache-Control", "private, no-store");
-      headers.append("Vary", "Cookie");
-      headers.delete("Content-Length");
-      headers.delete("ETag");
-      return new Response(renderInitialHtml(await asset.text(), data), {
-        status: asset.status,
-        headers,
-      });
-    }
+    const app = await application;
     return app.fetch(request);
   },
 };

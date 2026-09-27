@@ -1,9 +1,9 @@
 import { defineConfig } from "vite-plus";
-import logos from "./apps/logos/vite.config.ts";
+import tagmemo from "./apps/tagmemo/vite.config.ts";
 
 export default defineConfig({
-  ...logos,
-  plugins: process.env.VITEST ? [] : logos.plugins,
+  ...tagmemo,
+  plugins: process.env.VITEST ? [] : tagmemo.plugins,
   root: process.env.VITEST ? undefined : "apps",
   staged: {
     "*": "vp check --fix",

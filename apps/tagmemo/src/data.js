@@ -1,11 +1,11 @@
-async function api(path, method = "GET", data) {
+async function api(path, method = "GET", data, fetcher = fetch) {
   if (data !== undefined && method !== "POST" && method !== "PUT") {
     throw new Error("データを送る操作は POST または PUT にしてください");
   }
   const response =
     data === undefined
-      ? await fetch(`/api${path}`, { method })
-      : await fetch(`/api${path}`, {
+      ? await fetcher(`/api${path}`, { method })
+      : await fetcher(`/api${path}`, {
           method: method === "POST" ? "POST" : "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
@@ -17,11 +17,16 @@ async function api(path, method = "GET", data) {
   return response.status === 204 ? null : response.json();
 }
 
-async function listIds(type) {
+async function listIds(type, fetcher) {
   const ids = [];
   let after = "";
   while (true) {
-    const page = await api(`/entities?has=${type}&limit=100${after ? `&after=${after}` : ""}`);
+    const page = await api(
+      `/entities?has=${type}&limit=100${after ? `&after=${after}` : ""}`,
+      "GET",
+      undefined,
+      fetcher,
+    );
     ids.push(...page.ids);
     if (page.ids.length < 100) return ids;
     after = page.ids.at(-1);
@@ -32,15 +37,15 @@ function component(entity, key) {
   return entity.components.find((item) => item.type_key === key);
 }
 
-export async function loadData() {
+export async function loadData(fetcher = fetch) {
   const [memoIds, tagIds, typeResult] = await Promise.all([
-    listIds("tagmemo.memo"),
-    listIds("tagmemo.tag"),
-    api("/component-types"),
+    listIds("tagmemo.memo", fetcher),
+    listIds("tagmemo.tag", fetcher),
+    api("/component-types", "GET", undefined, fetcher),
   ]);
   const [memoEntities, tagEntities] = await Promise.all([
-    Promise.all(memoIds.map((id) => api(`/entities/${id}`))),
-    Promise.all(tagIds.map((id) => api(`/entities/${id}`))),
+    Promise.all(memoIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
+    Promise.all(tagIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
   ]);
   const tags = tagEntities.map((entity) => ({
     id: entity.id,

@@ -7,7 +7,9 @@
     "ready": "vp check && vp test && vp build && vp run website#build",
     "dev": "vp dev",
     "website": "vp run website#dev",
-    "deploy": "vp run @logos/server#deploy",
+    "deploy": "vp run @logos/server#deploy && vp run tagmemo#deploy",
+    "deploy:logos": "vp run @logos/server#deploy",
+    "deploy:tagmemo": "vp run tagmemo#deploy",
     "prepare": "vp config"
   },
   "devDependencies": {

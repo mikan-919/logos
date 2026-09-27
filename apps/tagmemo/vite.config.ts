@@ -12,15 +12,23 @@ const cloudflare = process.env.VITEST
   : (await import("@cloudflare/vite-plugin")).cloudflare;
 
 export default defineConfig({
+  server: { strictPort: true },
   plugins: [
     irisout({ entry: "tagmemo/src/App.jsx", container: "#app" }),
     ...(cloudflare
-      ? [cloudflare({ configPath: fileURLToPath(new URL("./wrangler.jsonc", import.meta.url)) })]
+      ? [
+          cloudflare({
+            configPath: fileURLToPath(new URL("./wrangler.jsonc", import.meta.url)),
+            auxiliaryWorkers: [
+              { configPath: fileURLToPath(new URL("../logos/wrangler.jsonc", import.meta.url)) },
+            ],
+          }),
+        ]
       : []),
   ],
   build: {
     rollupOptions: {
-      input: fileURLToPath(new URL("../tagmemo/index.html", import.meta.url)),
+      input: fileURLToPath(new URL("./index.html", import.meta.url)),
     },
   },
 });

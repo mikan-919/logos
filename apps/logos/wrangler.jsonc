@@ -6,15 +6,4 @@
   "secrets": {
     "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET"],
   },
-  "assets": {
-    "binding": "ASSETS",
-    "run_worker_first": [
-      "/api/*",
-      "/",
-      "/index.html",
-      "/tagmemo",
-      "/tagmemo/",
-      "/tagmemo/index.html",
-    ],
-  },
 }

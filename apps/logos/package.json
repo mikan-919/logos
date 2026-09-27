@@ -19,9 +19,7 @@
     "kysely-turso": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "catalog:",
     "@types/node": "catalog:",
-    "irisout": "^0.3.4",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "wrangler": "catalog:"

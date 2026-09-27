@@ -1,4 +1,5 @@
 import { expect, test } from "vite-plus/test";
+import { componentTypes } from "../../tagmemo/src/component-types.ts";
 import { setup } from "./helpers.ts";
 
 test("TagMemo の API は Entity にメモとタグを保存する", async () => {
@@ -12,7 +13,8 @@ test("TagMemo の API は Entity にメモとタグを保存する", async () =>
       });
     expect((await app.request(`${origin}/api/entities`)).status).toBe(401);
     expect((await request("/api/component-types/logos.name")).status).toBe(200);
-    expect((await request("/api/component-types/tagmemo.memo")).status).toBe(200);
+    expect((await request("/api/component-types/tagmemo.memo")).status).toBe(404);
+    expect((await request("/api/component-types", "POST", componentTypes[0])).status).toBe(201);
     const entity = await (await request("/api/entities", "POST")).json();
     expect(
       (
