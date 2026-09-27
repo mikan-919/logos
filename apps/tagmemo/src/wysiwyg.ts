@@ -98,14 +98,14 @@ function flatten(fragment) {
 }
 
 export function setupWysiwyg() {
-  const dialog = /** @type {HTMLDialogElement} */ (document.getElementById("memo-dialog"));
-  const root = dialog.querySelector(".wysiwyg-app");
-  const doc = document.getElementById("memo-document");
-  const menu = document.getElementById("selection-menu");
-  const modal = document.getElementById("summary-modal");
-  const input = /** @type {HTMLInputElement} */ (document.getElementById("summary-input"));
-  const preview = document.getElementById("selection-preview");
-  const crumb = document.getElementById("editor-crumb");
+  const root = document.querySelector(".spa-editor") as HTMLElement;
+  const doc = document.getElementById("memo-document") as HTMLElement;
+  const title = document.getElementById("memo-title") as HTMLInputElement;
+  const menu = document.getElementById("selection-menu") as HTMLElement;
+  const modal = document.getElementById("summary-modal") as HTMLElement;
+  const input = document.getElementById("summary-input") as HTMLInputElement;
+  const preview = document.getElementById("selection-preview") as HTMLElement;
+  const crumb = document.getElementById("editor-crumb") as HTMLElement;
   let savedRange = null;
 
   function wire() {
@@ -127,9 +127,7 @@ export function setupWysiwyg() {
   }
 
   function bodyNodes() {
-    return [...doc.childNodes].filter(
-      (node) => node !== document.getElementById("memo-document-title"),
-    );
+    return [...doc.childNodes];
   }
 
   function selectionRange() {
@@ -137,13 +135,16 @@ export function setupWysiwyg() {
     if (!selection?.rangeCount || selection.isCollapsed || !selection.toString().trim())
       return null;
     const range = selection.getRangeAt(0);
-    const title = document.getElementById("memo-document-title");
-    if (!doc.contains(range.commonAncestorContainer) || range.intersectsNode(title)) return null;
+    if (!doc.contains(range.commonAncestorContainer)) return null;
     return range;
   }
 
   function showMenu() {
-    if (!dialog.open || modal.classList.contains("show")) return menu.classList.remove("show");
+    if (
+      !doc.closest(".spa-notes-work:not([data-hidden='true'])") ||
+      modal.classList.contains("show")
+    )
+      return menu.classList.remove("show");
     const range = selectionRange();
     if (!range) return menu.classList.remove("show");
     const rect = range.getBoundingClientRect();
@@ -184,27 +185,26 @@ export function setupWysiwyg() {
     selection.removeAllRanges();
     selection.addRange(after);
     closeSummary();
+    doc.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   root.addEventListener("mousedown", (event) => {
     if (
-      /** @type {Element} */ (event.target).closest(
-        "[data-editor-command], [data-editor-action='summarize']",
-      )
+      (event.target as Element).closest("[data-editor-command], [data-editor-action='summarize']")
     )
       event.preventDefault();
   });
   root.addEventListener("click", (event) => {
-    const target = /** @type {Element} */ (event.target);
+    const target = event.target as Element;
     const toggle = target.closest(".summary-head > .toggle");
     if (toggle) {
       const node = toggle.closest(".summary-node");
       node.classList.toggle("open");
       wire();
+      doc.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
-    const command = /** @type {HTMLElement} */ (target.closest("[data-editor-command]"))?.dataset
-      .editorCommand;
+    const command = (target.closest("[data-editor-command]") as HTMLElement)?.dataset.editorCommand;
     if (command) {
       document.execCommand(
         command.startsWith("h") ? "formatBlock" : command,
@@ -214,9 +214,7 @@ export function setupWysiwyg() {
       doc.focus();
       return;
     }
-    switch (
-      /** @type {HTMLElement} */ (target.closest("[data-editor-action]"))?.dataset.editorAction
-    ) {
+    switch ((target.closest("[data-editor-action]") as HTMLElement)?.dataset.editorAction) {
       case "summarize":
         openSummary();
         break;
@@ -229,12 +227,12 @@ export function setupWysiwyg() {
       case "expand":
       case "collapse": {
         const open =
-          /** @type {HTMLElement} */ (target.closest("[data-editor-action]")).dataset
-            .editorAction === "expand";
+          (target.closest("[data-editor-action]") as HTMLElement).dataset.editorAction === "expand";
         doc
           .querySelectorAll(".summary-node")
           .forEach((node) => node.classList.toggle("open", open));
         wire();
+        doc.dispatchEvent(new Event("input", { bubbles: true }));
         break;
       }
     }
@@ -259,7 +257,7 @@ export function setupWysiwyg() {
   doc.addEventListener("dragover", (event) => event.preventDefault());
   doc.addEventListener("drop", (event) => event.preventDefault());
   doc.addEventListener("focusin", (event) => {
-    const node = /** @type {Element} */ (event.target).closest(".summary-node");
+    const node = (event.target as Element).closest(".summary-node");
     if (!node) return crumb.classList.remove("show");
     let depth = 1;
     for (
@@ -278,7 +276,7 @@ export function setupWysiwyg() {
   );
   document.addEventListener("selectionchange", showMenu);
   document.addEventListener("keydown", (event) => {
-    if (!dialog.open) return;
+    if (!doc.closest(".spa-notes-work:not([data-hidden='true'])")) return;
     if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "m") {
       event.preventDefault();
       openSummary();
@@ -291,11 +289,9 @@ export function setupWysiwyg() {
 
   return {
     set(title, text, html) {
+      const titleInput = document.getElementById("memo-title") as HTMLInputElement;
+      titleInput.value = title;
       doc.replaceChildren();
-      const heading = document.createElement("h1");
-      heading.id = "memo-document-title";
-      heading.textContent = title;
-      doc.append(heading);
       if (html) doc.append(cleanHtml(html));
       else
         for (const line of (text || "").split("\n")) {
@@ -309,10 +305,9 @@ export function setupWysiwyg() {
       savedRange = null;
     },
     get() {
-      const heading = document.getElementById("memo-document-title");
       const fragment = document.createElement("div");
       for (const node of bodyNodes()) fragment.append(clean(node));
-      const plain = /** @type {HTMLElement} */ (fragment.cloneNode(true));
+      const plain = fragment.cloneNode(true) as HTMLElement;
       for (const node of [...plain.querySelectorAll(".summary-node")].reverse()) {
         const detail = node.querySelector(
           ":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner",
@@ -320,7 +315,7 @@ export function setupWysiwyg() {
         node.replaceWith(...(detail ? [...detail.childNodes] : []));
       }
       return {
-        title: heading.textContent.trim(),
+        title: title.value.trim(),
         text: [...plain.childNodes]
           .map((node) => node.textContent)
           .join("\n")
@@ -328,5 +323,6 @@ export function setupWysiwyg() {
         html: fragment.innerHTML,
       };
     },
+    openSummary,
   };
 }

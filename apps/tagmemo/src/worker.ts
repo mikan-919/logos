@@ -1,6 +1,6 @@
 import { loadInitialData } from "./initial-data.ts";
 import { registerComponentTypes } from "./register-types.ts";
-import { renderInitialHtml } from "./render-initial.ts";
+import { renderInitialHtml } from "./render-initial.tsx";
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };

@@ -39,7 +39,7 @@ test("TagMemo Worker は共通 API から初回表示を作り、API 要求を�
     const rendered = await page.text();
     expect(rendered).toContain("&lt;img src=x onerror=alert(1)&gt;");
     expect(rendered).toContain("\\u003cimg src=x");
-    expect(rendered).toContain('<span class="count">1 件</span>');
+    expect(rendered).toContain("<h2>すべてのメモ</h2><p>1 件のメモ</p>");
     expect(page.headers.get("Cache-Control")).toBe("private, no-store");
     const anonymous = await worker.fetch(new Request(`${origin}/tagmemo/`), env);
     expect(await anonymous.text()).toBe(html);

@@ -1,14 +1,14 @@
 import { expect, test, vi } from "vite-plus/test";
-import { createTag, deleteMemo, loadData, saveMemo, writeMemoBody } from "../src/data.js";
+import { createTag, deleteMemo, loadData, saveMemo, writeMemoBody } from "../src/data.ts";
 import { registerComponentTypes } from "../src/register-types.ts";
 import { setup } from "../../logos/tests/helpers.ts";
 
 test("タグを付けたメモを API 経由で保存・取得・削除できる", async () => {
   const { db, app, cookie, origin } = await setup();
-  vi.stubGlobal("fetch", (path, options = {}) =>
+  vi.stubGlobal("fetch", (path: string, options: RequestInit = {}) =>
     app.request(`${origin}${path}`, {
       ...options,
-      headers: { ...options.headers, Cookie: cookie },
+      headers: { ...Object.fromEntries(new Headers(options.headers)), Cookie: cookie },
     }),
   );
   try {
@@ -34,10 +34,10 @@ test("タグを付けたメモを API 経由で保存・取得・削除できる
 
 test("編集した本文を表示用の文章と HTML に分けて取得できる", async () => {
   const { db, app, cookie, origin } = await setup();
-  vi.stubGlobal("fetch", (path, options = {}) =>
+  vi.stubGlobal("fetch", (path: string, options: RequestInit = {}) =>
     app.request(`${origin}${path}`, {
       ...options,
-      headers: { ...options.headers, Cookie: cookie },
+      headers: { ...Object.fromEntries(new Headers(options.headers)), Cookie: cookie },
     }),
   );
   try {

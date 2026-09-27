@@ -14,7 +14,7 @@ const cloudflare = process.env.VITEST
 export default defineConfig({
   server: { strictPort: true },
   plugins: [
-    irisout({ entry: "tagmemo/src/App.jsx", container: "#app" }),
+    irisout({ entry: "tagmemo/src/App.tsx", container: "#app" }),
     ...(cloudflare
       ? [
           cloudflare({

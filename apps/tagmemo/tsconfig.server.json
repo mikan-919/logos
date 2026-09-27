@@ -2,10 +2,18 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "target": "esnext",
+    "jsx": "preserve",
     "types": ["node"],
     "strict": true,
     "skipLibCheck": true,
     "allowJs": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/worker.ts",
+    "src/render-initial.tsx",
+    "src/initial-data.ts",
+    "src/register-types.ts",
+    "src/component-types.ts",
+    "tests/**/*.ts"
+  ]
 }

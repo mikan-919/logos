@@ -1,4 +1,17 @@
-async function api(path, method = "GET", data, fetcher = fetch) {
+type Entity = {
+  id: string;
+  createdAt: string;
+  components: { type_key: string; value: any; revision: string; updated_at: string }[];
+};
+type Memo = { id: string; components: Entity["components"] };
+type ComponentType = { key: string; schema?: { properties?: Record<string, { type: string }> } };
+
+async function api(
+  path: string,
+  method = "GET",
+  data?: unknown,
+  fetcher: typeof fetch = fetch,
+): Promise<any> {
   if (data !== undefined && method !== "POST" && method !== "PUT") {
     throw new Error("データを送る操作は POST または PUT にしてください");
   }
@@ -17,7 +30,7 @@ async function api(path, method = "GET", data, fetcher = fetch) {
   return response.status === 204 ? null : response.json();
 }
 
-async function listIds(type, fetcher) {
+async function listIds(type: string, fetcher: typeof fetch): Promise<string[]> {
   const ids = [];
   let after = "";
   while (true) {
@@ -33,13 +46,13 @@ async function listIds(type, fetcher) {
   }
 }
 
-function component(entity, key) {
+function component(entity: { components: Entity["components"] }, key: string) {
   return entity.components.find((item) => item.type_key === key);
 }
 
 const richPrefix = "tagmemo:rich:";
 
-export function readMemoBody(value) {
+export function readMemoBody(value: string): { text: string; html: string } {
   if (!value.startsWith(richPrefix)) return { text: value, html: "" };
   try {
     const body = JSON.parse(value.slice(richPrefix.length));
@@ -48,7 +61,7 @@ export function readMemoBody(value) {
   return { text: value, html: "" };
 }
 
-export function writeMemoBody(text, html) {
+export function writeMemoBody(text: string, html: string): string {
   return richPrefix + JSON.stringify({ text, html });
 }
 
@@ -58,7 +71,7 @@ export async function loadData(fetcher = fetch) {
     listIds("tagmemo.tag", fetcher),
     api("/component-types", "GET", undefined, fetcher),
   ]);
-  const [memoEntities, tagEntities] = await Promise.all([
+  const [memoEntities, tagEntities]: [Entity[], Entity[]] = await Promise.all([
     Promise.all(memoIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
     Promise.all(tagIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
   ]);
@@ -68,10 +81,15 @@ export async function loadData(fetcher = fetch) {
   }));
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
   const notes = memoEntities.map((entity) => {
-    const tagIds = component(entity, "tagmemo.tags")?.value.entities ?? [];
+    const tagIds: string[] = component(entity, "tagmemo.tags")?.value.entities ?? [];
     const body = readMemoBody(component(entity, "tagmemo.memo")?.value.body ?? "");
     return {
       id: entity.id,
+      createdAt: entity.createdAt,
+      updatedAt: entity.components.reduce(
+        (latest, item) => (item.updated_at > latest ? item.updated_at : latest),
+        entity.createdAt,
+      ),
       title: component(entity, "logos.name")?.value.value ?? "無題",
       body: body.text,
       bodyHtml: body.html,
@@ -83,7 +101,7 @@ export async function loadData(fetcher = fetch) {
   return { notes, tags, types: typeResult.types };
 }
 
-async function createEntity(parts) {
+async function createEntity(parts: [string, Record<string, unknown>][]): Promise<string> {
   const entity = await api("/entities", "POST");
   try {
     for (const [typeKey, value] of parts) {
@@ -96,14 +114,19 @@ async function createEntity(parts) {
   }
 }
 
-export async function createTag(name) {
+export async function createTag(name: string): Promise<string> {
   return createEntity([
     ["logos.name", { value: name.trim() }],
     ["tagmemo.tag", {}],
   ]);
 }
 
-export async function saveMemo(note, title, body, tagIds) {
+export async function saveMemo(
+  note: Memo | null,
+  title: string,
+  body: string,
+  tagIds: string[],
+): Promise<string> {
   const name = { value: title.trim() };
   const memo = { body };
   const tags = { entities: tagIds };
@@ -114,8 +137,7 @@ export async function saveMemo(note, title, body, tagIds) {
       ["tagmemo.tags", tags],
     ]);
   }
-  /** @type {[string, Record<string, unknown>][]} */
-  const parts = [
+  const parts: [string, Record<string, unknown>][] = [
     ["logos.name", name],
     ["tagmemo.memo", memo],
     ["tagmemo.tags", tags],
@@ -134,18 +156,18 @@ export async function saveMemo(note, title, body, tagIds) {
   return note.id;
 }
 
-export async function deleteMemo(id) {
+export async function deleteMemo(id: string): Promise<void> {
   await api(`/entities/${id}`, "DELETE");
 }
 
-export function editableExtras(note, types) {
+export function editableExtras(note: Memo | null, types: ComponentType[]) {
   if (!note) return [];
   return note.components.flatMap((item) => {
     if (item.type_key === "logos.name" || item.type_key.startsWith("tagmemo.")) return [];
     const schema = types.find((type) => type.key === item.type_key)?.schema;
     const fields = Object.entries(schema?.properties ?? {}).map(([name, field]) => ({
       name,
-      type: field.type,
+      type: (field as { type: string }).type,
     }));
     if (
       !fields.length ||
@@ -156,7 +178,11 @@ export function editableExtras(note, types) {
   });
 }
 
-export async function updateExtra(noteId, extra, value) {
+export async function updateExtra(
+  noteId: string,
+  extra: Entity["components"][number],
+  value: Record<string, unknown>,
+): Promise<void> {
   await api(`/entities/${noteId}/components/${extra.type_key}`, "PUT", {
     revision: extra.revision,
     value,

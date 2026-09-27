@@ -1,4 +1,4 @@
-import { loadData } from "./data.js";
+import { loadData } from "./data.ts";
 
 export interface InitialData {
   user: { id: string };
@@ -7,6 +7,8 @@ export interface InitialData {
     title: string;
     body: string;
     bodyHtml: string;
+    createdAt?: string;
+    updatedAt?: string;
     tagIds: string[];
     tagLabels: { id: string; name: string }[];
     components: unknown[];
