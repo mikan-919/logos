@@ -4,29 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
-    "build": "vp build",
-    "start": "bun src/server.ts",
-    "deploy": "wrangler deploy --config dist/logos_tagmemo/wrangler.json",
-    "deploy:check": "wrangler deploy --config dist/logos_tagmemo/wrangler.json --dry-run",
-    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+    "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@libsql/client": "catalog:",
-    "@logos/backend": "workspace:*",
     "@logos/db": "workspace:*",
     "better-auth": "catalog:",
-    "hono": "catalog:",
     "irisout": "^0.3.4",
-    "kysely": "catalog:",
-    "kysely-turso": "catalog:"
+    "kysely": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "catalog:",
     "@mizchi/vlmkit": "0.22.0",
-    "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:",
-    "wrangler": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

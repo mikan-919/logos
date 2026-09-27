@@ -1,9 +1,9 @@
 import { connectDatabase } from "@logos/db";
-import { createTagmemoApp } from "./app.ts";
+import { createLogosApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
-import { loadInitialData } from "./initial-data.ts";
+import { loadInitialData } from "../../tagmemo/src/initial-data.ts";
 import { migrate } from "./migrate.ts";
-import { renderInitialHtml } from "./render-initial.ts";
+import { renderInitialHtml } from "../../tagmemo/src/render-initial.ts";
 
 interface Env {
   TURSO_DATABASE_URL: string;
@@ -31,7 +31,7 @@ async function initialize(env: Env) {
   try {
     const auth = createAuth(db, env.BETTER_AUTH_URL, env.BETTER_AUTH_SECRET);
     await migrate(db, auth);
-    return { app: createTagmemoApp(db, auth), auth, db };
+    return { app: createLogosApp(db, auth), auth, db };
   } catch (error) {
     await db.destroy();
     throw error;
@@ -46,8 +46,16 @@ export default {
     });
     const { app, auth, db } = await application;
     const path = new URL(request.url).pathname;
-    if (request.method === "GET" && (path === "/" || path === "/index.html")) {
-      const asset = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url)));
+    if (
+      request.method === "GET" &&
+      (path === "/" || path === "/index.html" || path === "/tagmemo")
+    ) {
+      return Response.redirect(new URL("/tagmemo/", request.url), 302);
+    }
+    if (request.method === "GET" && (path === "/tagmemo/" || path === "/tagmemo/index.html")) {
+      const asset = await env.ASSETS.fetch(
+        new Request(new URL("/tagmemo/index.html", request.url)),
+      );
       if (!asset.ok) return asset;
       const session = await auth.api.getSession({ headers: request.headers });
       if (!session) return asset;

@@ -1,0 +1,29 @@
+{
+  "name": "@logos/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vp test",
+    "deploy": "wrangler deploy --config ../../apps/dist/logos/wrangler.json",
+    "deploy:check": "wrangler deploy --config ../../apps/dist/logos/wrangler.json --dry-run"
+  },
+  "dependencies": {
+    "@libsql/client": "catalog:",
+    "@logos/backend": "workspace:*",
+    "@logos/db": "workspace:*",
+    "better-auth": "catalog:",
+    "hono": "catalog:",
+    "kysely": "catalog:",
+    "kysely-turso": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "irisout": "^0.3.4",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

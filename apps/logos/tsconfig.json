@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "esnext",
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "../tagmemo/src/initial-data.ts",
+    "../tagmemo/src/render-initial.ts",
+    "../tagmemo/src/component-types.ts"
+  ]
+}

@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run tagmemo#dev",
+    "ready": "vp check && vp test && vp build && vp run website#build",
+    "dev": "vp dev",
     "website": "vp run website#dev",
-    "deploy": "vp run tagmemo#deploy",
+    "deploy": "vp run @logos/server#deploy",
     "prepare": "vp config"
   },
   "devDependencies": {
+    "better-auth": "catalog:",
+    "irisout": "^0.3.4",
     "vite-plus": "catalog:"
   },
   "devEngines": {

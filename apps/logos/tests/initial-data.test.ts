@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
-import { loadInitialData } from "../src/initial-data.ts";
-import { renderInitialHtml } from "../src/render-initial.ts";
+import { loadInitialData } from "../../tagmemo/src/initial-data.ts";
+import { renderInitialHtml } from "../../tagmemo/src/render-initial.ts";
 import { setup } from "./helpers.ts";
 
 test("初回 HTML に閲覧可能なメモを埋め込み、内容をエスケープする", async () => {

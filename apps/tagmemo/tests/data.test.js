@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import { createTag, deleteMemo, loadData, saveMemo } from "../src/data.js";
-import { setup } from "./helpers.ts";
+import { setup } from "../../logos/tests/helpers.ts";
 
 test("タグを付けたメモを API 経由で保存・取得・削除できる", async () => {
   const { db, app, cookie, origin } = await setup();

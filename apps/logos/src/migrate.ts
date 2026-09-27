@@ -4,7 +4,7 @@ import * as initialMigration from "@logos/db/migrations/initial";
 import type { Database } from "@logos/db";
 import type { Kysely } from "kysely";
 import type { createAuth } from "./auth.ts";
-import { componentTypes } from "./component-types.ts";
+import { componentTypes } from "../../tagmemo/src/component-types.ts";
 
 export async function migrate(db: Kysely<Database>, auth: ReturnType<typeof createAuth>) {
   await (await getMigrations(auth.options)).runMigrations();

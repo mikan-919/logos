@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "logos-tagmemo",
+  "name": "logos",
   "compatibility_date": "2026-09-26",
   "main": "./src/worker.ts",
   "secrets": {
@@ -8,6 +8,13 @@
   },
   "assets": {
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/", "/index.html"],
+    "run_worker_first": [
+      "/api/*",
+      "/",
+      "/index.html",
+      "/tagmemo",
+      "/tagmemo/",
+      "/tagmemo/index.html",
+    ],
   },
 }
