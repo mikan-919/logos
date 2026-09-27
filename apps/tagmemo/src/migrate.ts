@@ -4,6 +4,7 @@ import * as initialMigration from "@logos/db/migrations/initial";
 import type { Database } from "@logos/db";
 import type { Kysely } from "kysely";
 import type { createAuth } from "./auth.ts";
+import { componentTypes } from "./component-types.ts";
 
 export async function migrate(db: Kysely<Database>, auth: ReturnType<typeof createAuth>) {
   await (await getMigrations(auth.options)).runMigrations();
@@ -13,4 +14,15 @@ export async function migrate(db: Kysely<Database>, auth: ReturnType<typeof crea
   });
   const { error } = await migrator.migrateToLatest();
   if (error) throw error;
+  await db
+    .insertInto("component_types")
+    .values(
+      componentTypes.map(({ key, ownerApp, schema }) => ({
+        key,
+        owner_app: ownerApp,
+        schema: JSON.stringify(schema),
+      })),
+    )
+    .onConflict((conflict) => conflict.column("key").doNothing())
+    .execute();
 }

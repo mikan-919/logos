@@ -1,35 +1,3 @@
-const definitions = [
-  {
-    key: "logos.name",
-    ownerApp: "logos",
-    schema: {
-      type: "object",
-      properties: { value: { type: "string", minLength: 1 } },
-      required: ["value"],
-      additionalProperties: false,
-    },
-  },
-  {
-    key: "tagmemo.memo",
-    schema: {
-      type: "object",
-      properties: { body: { type: "string" } },
-      required: ["body"],
-      additionalProperties: false,
-    },
-  },
-  { key: "tagmemo.tag", schema: { type: "object", additionalProperties: false } },
-  {
-    key: "tagmemo.tags",
-    schema: {
-      type: "object",
-      properties: { entities: { type: "array", items: { type: "string", format: "uuid" } } },
-      required: ["entities"],
-      additionalProperties: false,
-    },
-  },
-];
-
 async function api(path, method = "GET", data) {
   if (data !== undefined && method !== "POST" && method !== "PUT") {
     throw new Error("データを送る操作は POST または PUT にしてください");
@@ -49,20 +17,6 @@ async function api(path, method = "GET", data) {
   return response.status === 204 ? null : response.json();
 }
 
-async function ensureTypes() {
-  for (const definition of definitions) {
-    const response = await fetch(`/api/component-types/${definition.key}`);
-    if (response.ok) continue;
-    if (response.status !== 404) throw new Error("Component 型を確認できません");
-    const created = await fetch("/api/component-types", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(definition),
-    });
-    if (!created.ok && created.status !== 409) throw new Error("Component 型を登録できません");
-  }
-}
-
 async function listIds(type) {
   const ids = [];
   let after = "";
@@ -79,7 +33,6 @@ function component(entity, key) {
 }
 
 export async function loadData() {
-  await ensureTypes();
   const [memoIds, tagIds, typeResult] = await Promise.all([
     listIds("tagmemo.memo"),
     listIds("tagmemo.tag"),

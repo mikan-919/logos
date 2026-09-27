@@ -2,6 +2,8 @@
 
 irisout で構築したタグ付きメモのアプリ。メモ、タグ、名前、タグとの関連を Logos API の Entity と Component に保存する。別アプリが付けた Component は、単純な項目を編集できる場合に限り、メモ編集画面の `n components` から開ける。
 
+ログイン済みの初回 HTML には、その利用者が閲覧できるメモとタグを Worker が埋め込む。画面の読み込み後は irisout が操作を引き継ぐ。追加、保存、削除はすぐ画面に反映し、API が失敗した場合は元に戻す。
+
 ## 開発
 
 Turso でデータベースと認証トークンを用意する。`apps/tagmemo/.dev.vars.example` を `apps/tagmemo/.dev.vars` にコピーし、四つの値を設定する。`BETTER_AUTH_URL` はブラウザで開く URL と一致させる。`.dev.vars` は Git の管理対象外。

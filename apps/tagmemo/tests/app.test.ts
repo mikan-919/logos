@@ -11,18 +11,8 @@ test("TagMemo の API は Entity にメモとタグを保存する", async () =>
         body: data === undefined ? undefined : JSON.stringify(data),
       });
     expect((await app.request(`${origin}/api/entities`)).status).toBe(401);
-    for (const [key, schema] of [
-      [
-        "logos.name",
-        { type: "object", properties: { value: { type: "string" } }, required: ["value"] },
-      ],
-      [
-        "tagmemo.memo",
-        { type: "object", properties: { body: { type: "string" } }, required: ["body"] },
-      ],
-    ] as const) {
-      expect((await request("/api/component-types", "POST", { key, schema })).status).toBe(201);
-    }
+    expect((await request("/api/component-types/logos.name")).status).toBe(200);
+    expect((await request("/api/component-types/tagmemo.memo")).status).toBe(200);
     const entity = await (await request("/api/entities", "POST")).json();
     expect(
       (

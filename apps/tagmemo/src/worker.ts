@@ -1,16 +1,19 @@
 import { connectDatabase } from "@logos/db";
 import { createTagmemoApp } from "./app.ts";
 import { createAuth } from "./auth.ts";
+import { loadInitialData } from "./initial-data.ts";
 import { migrate } from "./migrate.ts";
+import { renderInitialHtml } from "./render-initial.ts";
 
 interface Env {
   TURSO_DATABASE_URL: string;
   TURSO_AUTH_TOKEN: string;
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
+  ASSETS: { fetch(request: Request): Promise<Response> };
 }
 
-let application: Promise<ReturnType<typeof createTagmemoApp>> | undefined;
+let application: ReturnType<typeof initialize> | undefined;
 
 async function initialize(env: Env) {
   for (const key of [
@@ -28,7 +31,7 @@ async function initialize(env: Env) {
   try {
     const auth = createAuth(db, env.BETTER_AUTH_URL, env.BETTER_AUTH_SECRET);
     await migrate(db, auth);
-    return createTagmemoApp(db, auth);
+    return { app: createTagmemoApp(db, auth), auth, db };
   } catch (error) {
     await db.destroy();
     throw error;
@@ -41,6 +44,24 @@ export default {
       application = undefined;
       throw error;
     });
-    return (await application).fetch(request);
+    const { app, auth, db } = await application;
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && (path === "/" || path === "/index.html")) {
+      const asset = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url)));
+      if (!asset.ok) return asset;
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session) return asset;
+      const data = await loadInitialData(db, session.user.id);
+      const headers = new Headers(asset.headers);
+      headers.set("Cache-Control", "private, no-store");
+      headers.append("Vary", "Cookie");
+      headers.delete("Content-Length");
+      headers.delete("ETag");
+      return new Response(renderInitialHtml(await asset.text(), data), {
+        status: asset.status,
+        headers,
+      });
+    }
+    return app.fetch(request);
   },
 };

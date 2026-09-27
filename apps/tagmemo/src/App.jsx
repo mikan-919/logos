@@ -1,11 +1,12 @@
 import { derived, onMount, render, signal } from "irisout";
 import { currentUser, signIn, signOut, signUp } from "./auth-client.js";
+import { initialData } from "./bootstrap.js";
 import { createTag, deleteMemo, editableExtras, loadData, saveMemo, updateExtra } from "./data.js";
 
 export function App() {
-  const notes = signal([]);
-  const tags = signal([]);
-  const types = signal([]);
+  const notes = signal(initialData()?.notes ?? []);
+  const tags = signal(initialData()?.tags ?? []);
+  const types = signal(initialData()?.types ?? []);
   const selectedTag = signal("");
   const search = signal("");
   const status = signal("");
@@ -17,8 +18,8 @@ export function App() {
   const draftTags = signal([]);
   const extraKey = signal("");
   const extraValue = signal({});
-  const user = signal(null);
-  const checking = signal(true);
+  const user = signal(initialData()?.user ?? null);
+  const checking = signal(!initialData());
   const authMode = signal("signin");
   const email = signal("");
   const password = signal("");
@@ -144,6 +145,7 @@ export function App() {
                   key={tag.id}
                   class={selectedTag() === tag.id ? "tag-item active" : "tag-item"}
                   type="button"
+                  disabled={Boolean(tag.pending)}
                   onClick={() => selectedTag(tag.id)}
                 >
                   <span class="tag-name">{tag.name}</span>
@@ -158,6 +160,7 @@ export function App() {
                   maxlength="80"
                   placeholder="タグ名"
                   required
+                  disabled={busy()}
                   value={newTag()}
                   onInput={(event) => newTag(event.currentTarget.value)}
                 />
@@ -200,7 +203,11 @@ export function App() {
                         </span>
                       ))}
                     </div>
-                    <button type="button" onClick={() => openEditor(note.id)}>
+                    <button
+                      type="button"
+                      disabled={Boolean(note.pending)}
+                      onClick={() => openEditor(note.id)}
+                    >
                       編集
                     </button>
                   </div>
@@ -346,19 +353,32 @@ export function App() {
   );
 
   onMount(() => {
-    currentUser()
-      .then((nextUser) => {
-        user(nextUser);
-        checking(false);
-        if (nextUser)
-          loadData()
-            .then((data) => applyData(data))
-            .catch((error) => fail(error));
-      })
-      .catch((error) => {
-        checking(false);
-        fail(error);
-      });
+    if (initialData()) {
+      user(initialData().user);
+      checking(false);
+    } else {
+      currentUser()
+        .then((nextUser) => {
+          user(nextUser);
+          if (nextUser) {
+            loadData()
+              .then((data) => {
+                applyData(data);
+                checking(false);
+              })
+              .catch((error) => {
+                checking(false);
+                fail(error);
+              });
+          } else {
+            checking(false);
+          }
+        })
+        .catch((error) => {
+          checking(false);
+          fail(error);
+        });
+    }
   });
 
   function switchAuth() {
@@ -374,20 +394,9 @@ export function App() {
         : signIn(email(), password());
     action
       .then(() => {
-        password("");
-        currentUser()
-          .then((nextUser) => {
-            user(nextUser);
-            checking(false);
-            if (nextUser)
-              loadData()
-                .then((data) => applyData(data))
-                .catch((error) => fail(error));
-          })
-          .catch((error) => fail(error));
+        window.location.reload();
       })
-      .catch((error) => fail(error))
-      .finally(() => busy(false));
+      .catch((error) => fail(error));
   }
   function logout() {
     signOut()
@@ -430,44 +439,89 @@ export function App() {
   }
   function addTag(event) {
     event.preventDefault();
-    if (!newTag().trim()) return;
+    if (busy() || !newTag().trim()) return;
+    const name = newTag().trim();
+    const previousTags = tags();
     busy(true);
-    createTag(newTag())
+    status("");
+    tags([...previousTags, { id: crypto.randomUUID(), name, pending: true }]);
+    newTag("");
+    createTag(name)
       .then(() => {
-        newTag("");
         loadData()
           .then((data) => applyData(data))
-          .catch((error) => fail(error));
+          .catch((error) => fail(error))
+          .finally(() => busy(false));
       })
-      .catch((error) => fail(error))
-      .finally(() => busy(false));
+      .catch((error) => {
+        tags(previousTags);
+        newTag(name);
+        fail(error);
+      });
   }
   function save(event) {
     event.preventDefault();
-    if (!title().trim()) return;
+    if (busy() || !title().trim()) return;
+    const note = currentNote();
+    const previousNotes = notes();
+    const nextTitle = title().trim();
+    const nextBody = body();
+    const nextTagIds = [...draftTags()];
+    const tagLabels = tags()
+      .filter((tag) => nextTagIds.includes(tag.id))
+      .map((tag) => ({ id: tag.id, name: tag.name }));
+    const pendingNote = {
+      id: note?.id ?? crypto.randomUUID(),
+      title: nextTitle,
+      body: nextBody,
+      tagIds: nextTagIds,
+      tagLabels,
+      components: note?.components ?? [],
+      pending: !note,
+    };
     busy(true);
-    saveMemo(currentNote(), title(), body(), draftTags())
+    status("");
+    notes(
+      note
+        ? previousNotes.map((item) => (item.id === note.id ? pendingNote : item))
+        : [...previousNotes, pendingNote],
+    );
+    closeEditor();
+    saveMemo(note, nextTitle, nextBody, nextTagIds)
       .then(() => {
-        closeEditor();
         loadData()
           .then((data) => applyData(data))
-          .catch((error) => fail(error));
+          .catch((error) => fail(error))
+          .finally(() => busy(false));
       })
-      .catch((error) => fail(error))
-      .finally(() => busy(false));
+      .catch((error) => {
+        notes(previousNotes);
+        const dialog = document.getElementById("memo-dialog");
+        if (dialog instanceof HTMLDialogElement) dialog.showModal();
+        fail(error);
+      });
   }
   function removeMemo() {
-    if (!editingId() || !confirm("このメモを削除しますか？")) return;
+    if (busy() || !editingId() || !confirm("このメモを削除しますか？")) return;
+    const previousNotes = notes();
+    const id = editingId();
     busy(true);
-    deleteMemo(editingId())
+    status("");
+    notes(previousNotes.filter((note) => note.id !== id));
+    closeEditor();
+    deleteMemo(id)
       .then(() => {
-        closeEditor();
         loadData()
           .then((data) => applyData(data))
-          .catch((error) => fail(error));
+          .catch((error) => fail(error))
+          .finally(() => busy(false));
       })
-      .catch((error) => fail(error))
-      .finally(() => busy(false));
+      .catch((error) => {
+        notes(previousNotes);
+        const dialog = document.getElementById("memo-dialog");
+        if (dialog instanceof HTMLDialogElement) dialog.showModal();
+        fail(error);
+      });
   }
   function openExtras() {
     const first = extras()[0];
@@ -490,16 +544,38 @@ export function App() {
   }
   function saveExtra(event) {
     event.preventDefault();
-    if (!activeExtra()) return;
+    if (busy() || !activeExtra()) return;
+    const previousNotes = notes();
+    const id = editingId();
+    const extra = activeExtra();
+    const value = { ...extraValue() };
     busy(true);
-    updateExtra(editingId(), activeExtra(), extraValue())
+    status("");
+    notes(
+      previousNotes.map((note) =>
+        note.id === id
+          ? {
+              ...note,
+              components: note.components.map((item) =>
+                item.type_key === extra.type_key ? { ...item, value } : item,
+              ),
+            }
+          : note,
+      ),
+    );
+    closeExtras();
+    updateExtra(id, extra, value)
       .then(() => {
-        closeExtras();
         loadData()
           .then((data) => applyData(data))
-          .catch((error) => fail(error));
+          .catch((error) => fail(error))
+          .finally(() => busy(false));
       })
-      .catch((error) => fail(error))
-      .finally(() => busy(false));
+      .catch((error) => {
+        notes(previousNotes);
+        const dialog = document.getElementById("components-dialog");
+        if (dialog instanceof HTMLDialogElement) dialog.showModal();
+        fail(error);
+      });
   }
 }

@@ -1,17 +1,14 @@
 import { connectDatabase } from "@logos/db";
-import { getMigrations } from "better-auth/db/migration";
-import { up } from "../../../packages/db/src/migrations/20260926_initial.ts";
-import type { Kysely } from "kysely";
 import { createAuth } from "../src/auth.ts";
 import { createTagmemoApp } from "../src/app.ts";
+import { migrate } from "../src/migrate.ts";
 
 const origin = "http://localhost:3000";
 
 export async function setup() {
   const db = await connectDatabase("file::memory:");
   const auth = createAuth(db, origin, "test-secret-at-least-thirty-two-characters");
-  await (await getMigrations(auth.options)).runMigrations();
-  await up(db as unknown as Kysely<unknown>);
+  await migrate(db, auth);
   const app = createTagmemoApp(db, auth);
   const signup = await app.request(`${origin}/api/auth/sign-up/email`, {
     method: "POST",

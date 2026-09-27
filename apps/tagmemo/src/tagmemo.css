@@ -29,6 +29,13 @@ select:focus-visible {
 .shell {
   min-height: 100vh;
 }
+#ssr-view {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  overflow: auto;
+  background: #f7f6f4;
+}
 .topbar {
   height: 76px;
   display: flex;

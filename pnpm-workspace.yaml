@@ -6,7 +6,7 @@ packages:
 catalogMode: prefer
 
 catalog:
-  '@cfworker/json-schema': ^4.1.1
+  "@cfworker/json-schema": ^4.1.1
   "@cloudflare/vite-plugin": ^1.60.1
   "@libsql/client": ^0.18.0
   "@types/node": ^24
