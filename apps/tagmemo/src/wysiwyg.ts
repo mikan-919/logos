@@ -1,3 +1,5 @@
+import { createChevronRightIcon } from "./components/Icon.tsx";
+
 const allowedTags = new Set([
   "P",
   "DIV",
@@ -31,6 +33,7 @@ function clean(node) {
   const classes = [...node.classList].filter((name) => allowedClasses.has(name));
   if (classes.length) element.className = classes.join(" ");
   if (tag === "button") element.type = "button";
+  if (tag === "button" && classes.includes("toggle")) return element;
   for (const child of node.childNodes) element.append(clean(child));
   return element;
 }
@@ -51,8 +54,7 @@ function summaryNode(label, detail) {
   const toggle = document.createElement("button");
   toggle.className = "toggle";
   toggle.type = "button";
-  toggle.innerHTML =
-    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  toggle.append(createChevronRightIcon());
   const text = document.createElement("span");
   text.className = "summary-text";
   text.contentEditable = "true";
@@ -104,6 +106,7 @@ function wireSummaryNodes(root) {
       .querySelector(":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner")
       ?.setAttribute("contenteditable", "true");
     const toggle = node.querySelector(":scope > .summary-head > .toggle");
+    toggle?.replaceChildren(createChevronRightIcon());
     toggle?.setAttribute("aria-expanded", String(node.classList.contains("open")));
     toggle?.setAttribute(
       "aria-label",

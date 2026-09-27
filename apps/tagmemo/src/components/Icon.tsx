@@ -1,6 +1,22 @@
 import { render } from "irisout";
 
 // Lucide icon paths, ISC license: https://lucide.dev/license
+export function createChevronRightIcon() {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute("d", "m9 18 6-6-6-6");
+  svg.append(path);
+  return svg;
+}
+
 export function Icon({ name }) {
   render(
     <svg
