@@ -40,7 +40,7 @@ export function renderInitialHtml(html: string, data: InitialData): string {
   const view = `<script id="tagmemo-initial-data" type="application/json">${payload}</script>
     <div id="ssr-view" class="shell">
       <header class="topbar">
-        <div class="brand"><span class="brand-mark">✳</span><span>TagMemo</span></div>
+        <div class="brand"><span>TagMemo</span></div>
         <label class="search"><span>検索</span><input type="search" placeholder="メモを検索" disabled></label>
         <button class="primary" type="button" disabled>＋ メモを作成</button>
       </header>

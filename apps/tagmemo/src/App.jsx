@@ -1,7 +1,19 @@
 import { derived, onMount, render, signal } from "irisout";
 import { currentUser, signIn, signOut, signUp } from "./auth-client.js";
 import { initialData } from "./bootstrap.js";
-import { createTag, deleteMemo, editableExtras, loadData, saveMemo, updateExtra } from "./data.js";
+import {
+  createTag,
+  deleteMemo,
+  editableExtras,
+  loadData,
+  saveMemo,
+  updateExtra,
+  writeMemoBody,
+} from "./data.js";
+import { WysiwygEditor } from "./WysiwygEditor.jsx";
+import { setupWysiwyg } from "./wysiwyg.js";
+
+const editorState = { current: null };
 
 export function App() {
   const notes = signal(initialData()?.notes ?? []);
@@ -13,8 +25,6 @@ export function App() {
   const busy = signal(false);
   const newTag = signal("");
   const editingId = signal("");
-  const title = signal("");
-  const body = signal("");
   const draftTags = signal([]);
   const extraKey = signal("");
   const extraValue = signal({});
@@ -53,7 +63,6 @@ export function App() {
       <section class="auth-screen" data-hidden={checking() || Boolean(user())} aria-label="認証">
         <form class="auth-card" onSubmit={submitAuth}>
           <div class="brand">
-            <span class="brand-mark">✳</span>
             <span>TagMemo</span>
           </div>
           <p class="eyebrow">Logos</p>
@@ -105,7 +114,6 @@ export function App() {
       <div class="app-content" data-hidden={!user()}>
         <header class="topbar">
           <div class="brand">
-            <span class="brand-mark">✳</span>
             <span>TagMemo</span>
           </div>
           <label class="search">
@@ -217,34 +225,9 @@ export function App() {
           </main>
         </div>
 
-        <dialog id="memo-dialog" class="editor-dialog">
-          <form class="editor-form" onSubmit={save}>
-            <div class="dialog-head">
-              <div>
-                <p class="eyebrow">TagMemo</p>
-                <h2>{editingId() ? "メモを編集" : "メモを作成"}</h2>
-              </div>
-              <button class="icon-button" type="button" aria-label="閉じる" onClick={closeEditor}>
-                ×
-              </button>
-            </div>
-            <label for="memo-title">タイトル</label>
-            <input
-              id="memo-title"
-              maxlength="200"
-              required
-              placeholder="何について書きますか"
-              value={title()}
-              onInput={(event) => title(event.currentTarget.value)}
-            />
-            <label for="memo-body">本文</label>
-            <textarea
-              id="memo-body"
-              rows="10"
-              placeholder="メモを書き始める"
-              value={body()}
-              onInput={(event) => body(event.currentTarget.value)}
-            ></textarea>
+        <dialog id="memo-dialog" class="wysiwyg-dialog">
+          <WysiwygEditor onSave={save} onClose={closeEditor} />
+          <div class="wysiwyg-footer">
             <p class="status" role="alert">
               {status()}
             </p>
@@ -277,11 +260,8 @@ export function App() {
                 <span>{extras().length}</span>
                 <span> components</span>
               </button>
-              <button class="primary" type="submit" disabled={busy()}>
-                保存
-              </button>
             </div>
-          </form>
+          </div>
         </dialog>
 
         <dialog id="components-dialog" class="components-dialog">
@@ -353,6 +333,7 @@ export function App() {
   );
 
   onMount(() => {
+    editorState.current = setupWysiwyg();
     if (initialData()) {
       user(initialData().user);
       checking(false);
@@ -422,8 +403,7 @@ export function App() {
   function openEditor(id) {
     const note = notes().find((item) => item.id === id);
     editingId(id);
-    title(note?.title ?? "");
-    body(note?.body ?? "");
+    editorState.current.set(note?.title ?? "", note?.body ?? "", note?.bodyHtml ?? "");
     draftTags(note?.tagIds ?? []);
     const dialog = document.getElementById("memo-dialog");
     if (dialog instanceof HTMLDialogElement) dialog.showModal();
@@ -461,11 +441,21 @@ export function App() {
   }
   function save(event) {
     event.preventDefault();
-    if (busy() || !title().trim()) return;
+    const value = editorState.current.get();
+    if (busy()) return;
+    if (!value.title || value.title.length > 200) {
+      alert(
+        value.title.length > 200
+          ? "タイトルは200文字以内にしてください"
+          : "タイトルを入力してください",
+      );
+      return;
+    }
     const note = currentNote();
     const previousNotes = notes();
-    const nextTitle = title().trim();
-    const nextBody = body();
+    const nextTitle = value.title;
+    const nextBody = value.text;
+    const storedBody = writeMemoBody(value.text, value.html);
     const nextTagIds = [...draftTags()];
     const tagLabels = tags()
       .filter((tag) => nextTagIds.includes(tag.id))
@@ -474,6 +464,7 @@ export function App() {
       id: note?.id ?? crypto.randomUUID(),
       title: nextTitle,
       body: nextBody,
+      bodyHtml: value.html,
       tagIds: nextTagIds,
       tagLabels,
       components: note?.components ?? [],
@@ -487,7 +478,7 @@ export function App() {
         : [...previousNotes, pendingNote],
     );
     closeEditor();
-    saveMemo(note, nextTitle, nextBody, nextTagIds)
+    saveMemo(note, nextTitle, storedBody, nextTagIds)
       .then(() => {
         loadData()
           .then((data) => applyData(data))

@@ -6,6 +6,7 @@ export interface InitialData {
     id: string;
     title: string;
     body: string;
+    bodyHtml: string;
     tagIds: string[];
     tagLabels: { id: string; name: string }[];
     components: unknown[];

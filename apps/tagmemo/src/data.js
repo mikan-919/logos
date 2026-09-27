@@ -37,6 +37,21 @@ function component(entity, key) {
   return entity.components.find((item) => item.type_key === key);
 }
 
+const richPrefix = "tagmemo:rich:";
+
+export function readMemoBody(value) {
+  if (!value.startsWith(richPrefix)) return { text: value, html: "" };
+  try {
+    const body = JSON.parse(value.slice(richPrefix.length));
+    if (typeof body.text === "string" && typeof body.html === "string") return body;
+  } catch {}
+  return { text: value, html: "" };
+}
+
+export function writeMemoBody(text, html) {
+  return richPrefix + JSON.stringify({ text, html });
+}
+
 export async function loadData(fetcher = fetch) {
   const [memoIds, tagIds, typeResult] = await Promise.all([
     listIds("tagmemo.memo", fetcher),
@@ -54,10 +69,12 @@ export async function loadData(fetcher = fetch) {
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
   const notes = memoEntities.map((entity) => {
     const tagIds = component(entity, "tagmemo.tags")?.value.entities ?? [];
+    const body = readMemoBody(component(entity, "tagmemo.memo")?.value.body ?? "");
     return {
       id: entity.id,
       title: component(entity, "logos.name")?.value.value ?? "無題",
-      body: component(entity, "tagmemo.memo")?.value.body ?? "",
+      body: body.text,
+      bodyHtml: body.html,
       tagIds,
       tagLabels: tagIds.map((id) => ({ id, name: tagNames.get(id) ?? "不明なタグ" })),
       components: entity.components,

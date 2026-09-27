@@ -1,4 +1,5 @@
 import "./tagmemo.css";
+import "./wysiwyg.css";
 import "virtual:irisout-entry";
 
 document.getElementById("ssr-view")?.remove();

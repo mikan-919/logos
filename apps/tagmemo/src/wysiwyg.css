@@ -1,0 +1,476 @@
+/* Adapted from tagmemo-wysiwyg.html. */
+.wysiwyg-dialog {
+  --bg: #111;
+  --surface: #171717;
+  --raised: #202020;
+  --raised2: #272727;
+  --line: #303030;
+  --text: #f2f2ee;
+  --muted: #8d8d87;
+  --muted2: #666660;
+  --accent: #efefe9;
+  --ease: cubic-bezier(0.2, 0.72, 0.18, 1);
+  width: min(1040px, calc(100vw - 20px));
+  max-height: calc(100vh - 20px);
+  padding: 24px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, "Noto Sans JP", sans-serif;
+}
+.wysiwyg-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+.wysiwyg-dialog button {
+  font-family: inherit;
+}
+.wysiwyg-dialog input {
+  font: inherit;
+}
+.wysiwyg-app {
+  max-width: 980px;
+  margin: 0 auto;
+}
+.wysiwyg-top {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.wysiwyg-brand {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+.wysiwyg-topright {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--raised);
+}
+.wysiwyg-sheet {
+  background: var(--surface);
+  border: 1px solid #242424;
+  border-radius: 30px;
+  overflow: hidden;
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.18);
+}
+.wysiwyg-toolbar {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(23, 23, 23, 0.94);
+  backdrop-filter: blur(18px);
+  z-index: 5;
+}
+.tool {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.tool:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.tool.primary {
+  background: var(--accent);
+  color: #111;
+  font-weight: 650;
+}
+.sep {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 2px;
+}
+.spacer {
+  flex: 1;
+}
+.wysiwyg-doc {
+  min-height: 720px;
+  padding: 54px 72px 110px;
+  outline: none;
+  font-size: 16px;
+  line-height: 1.85;
+  letter-spacing: -0.01em;
+}
+.wysiwyg-doc:empty:before {
+  content: "ここに書く…";
+  color: var(--muted2);
+}
+.wysiwyg-doc p {
+  margin: 0 0 18px;
+}
+.wysiwyg-doc h1 {
+  font-size: 34px;
+  line-height: 1.18;
+  letter-spacing: -0.045em;
+  margin: 0 0 28px;
+}
+.wysiwyg-doc h2 {
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+  margin: 30px 0 16px;
+}
+.summary-node {
+  display: inline;
+  position: relative;
+  vertical-align: baseline;
+}
+
+/* Closed state: only the short summary occupies inline space. */
+.summary-head {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 6px 2px 4px;
+  margin: 0 1px;
+  border-radius: 8px;
+  background: var(--raised);
+  border: 1px solid #2d2d2d;
+  vertical-align: baseline;
+  max-width: 100%;
+}
+.toggle {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 0;
+  border-radius: 6px;
+  background: #2c2c2c;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  display: inline-grid;
+  place-items: center;
+  transition:
+    transform 0.25s var(--ease),
+    background 0.18s;
+}
+.toggle:hover {
+  background: #333;
+  color: var(--text);
+}
+.summary-node.open > .summary-head .toggle {
+  transform: rotate(90deg);
+}
+.summary-text {
+  outline: none;
+  font-size: inherit;
+  font-weight: 650;
+  padding: 0 1px;
+  border-radius: 5px;
+  white-space: normal;
+}
+.summary-text:focus {
+  background: #292929;
+}
+.summary-meta {
+  display: none;
+}
+.summary-detail {
+  display: none;
+}
+
+/*
+  Open state:
+  head + detail become one inline flow. The outer .summary-node itself receives
+  one sliced decoration across all wrapped line fragments. This produces the
+  stepped/continuous outline from the sketch while still letting prose after
+  the node continue in the remaining line width.
+*/
+.summary-node.open {
+  display: inline;
+  padding: 5px 7px;
+  margin: 0 2px;
+  border: 1px solid #3a3a3a;
+  border-radius: 13px;
+  background: #1b1b1b;
+  -webkit-box-decoration-break: slice;
+  box-decoration-break: slice;
+  line-height: 2.05;
+}
+.summary-node.open > .summary-head {
+  display: inline-flex;
+  margin: 0 5px 0 0;
+  padding: 1px 5px 1px 3px;
+  background: #282828;
+  border-color: #3b3b3b;
+  border-radius: 7px;
+  vertical-align: baseline;
+  line-height: 1.55;
+}
+.summary-node.open > .summary-detail {
+  display: inline;
+}
+.summary-detail-clip,
+.summary-detail-inner {
+  display: inline;
+}
+.summary-detail-inner {
+  outline: none;
+  color: #d8d8d3;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  line-height: inherit;
+}
+.summary-detail-inner:focus {
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 5px;
+}
+
+/* Flatten ordinary blocks captured by a range so the opened detail participates
+   in the same inline text flow. */
+.summary-detail-inner p,
+.summary-detail-inner
+  div:not(.summary-node):not(.summary-head):not(.summary-detail):not(.summary-detail-clip) {
+  display: inline;
+  margin: 0;
+}
+.summary-detail-inner p + p::before {
+  content: "  ";
+  white-space: pre;
+}
+
+/* Nested summaries keep the same behavior. */
+.summary-detail-inner .summary-node {
+  margin-inline: 2px;
+}
+.selection-menu {
+  position: fixed;
+  z-index: 20;
+  display: none;
+  padding: 6px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  gap: 5px;
+}
+.selection-menu.show {
+  display: flex;
+}
+.selection-menu button {
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: #353535;
+  padding: 0 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+.selection-menu button:hover {
+  background: #414141;
+}
+.selection-menu .primary {
+  background: var(--accent);
+  color: #111;
+  font-weight: 650;
+}
+.summary-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(5px);
+  display: none;
+  place-items: center;
+  z-index: 30;
+}
+.summary-modal.show {
+  display: grid;
+}
+.summary-dialog {
+  width: min(520px, calc(100vw - 28px));
+  background: #252525;
+  border: 1px solid #383838;
+  border-radius: 24px;
+  padding: 14px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+}
+.summary-dialog-inner {
+  background: #1d1d1d;
+  border-radius: 16px;
+  padding: 14px;
+}
+.summary-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.summary-dialog input {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  outline: none;
+  background: #292929;
+  color: var(--text);
+  border-radius: 11px;
+  padding: 0 12px;
+}
+.selection-preview {
+  margin-top: 10px;
+  max-height: 150px;
+  overflow: auto;
+  background: #222;
+  border-radius: 11px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.summary-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.summary-actions button {
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #343434;
+  color: var(--text);
+  padding: 0 12px;
+  cursor: pointer;
+}
+.summary-actions .commit {
+  background: var(--accent);
+  color: #111;
+  font-weight: 650;
+}
+.editor-crumb {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #242424;
+  border: 1px solid #363636;
+  padding: 7px 10px;
+  border-radius: 999px;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.35);
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.2s ease;
+}
+.editor-crumb.show {
+  opacity: 1;
+}
+@media (max-width: 720px) {
+  .wysiwyg-dialog {
+    padding: 10px;
+  }
+  .wysiwyg-doc {
+    padding: 32px 20px 90px;
+  }
+  .wysiwyg-toolbar .hide-small {
+    display: none;
+  }
+  .wysiwyg-sheet {
+    border-radius: 22px;
+  }
+}
+
+.wysiwyg-dialog .wysiwyg-doc {
+  min-height: 460px;
+}
+.wysiwyg-doc h1:empty::before {
+  content: "タイトル";
+  color: var(--muted2);
+}
+.wysiwyg-doc > p:empty::before {
+  content: "ここに書く…";
+  color: var(--muted2);
+}
+.wysiwyg-dialog .wysiwyg-topright {
+  gap: 10px;
+}
+.wysiwyg-footer {
+  max-width: 980px;
+  margin: 16px auto 0;
+  padding: 16px 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.wysiwyg-footer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.wysiwyg-footer legend {
+  font-size: 12px;
+  color: var(--muted);
+}
+.wysiwyg-footer .tag-option {
+  border-color: var(--line);
+  color: var(--text);
+}
+.wysiwyg-footer .tag-option:has(input:checked) {
+  background: var(--raised2);
+  border-color: #777;
+}
+.wysiwyg-footer .danger {
+  color: #ff9c9c;
+}
+.wysiwyg-footer .quiet {
+  color: var(--text);
+}
+.wysiwyg-dialog .status {
+  color: #ff9c9c;
+}
+.wysiwyg-dialog .summary-modal {
+  position: fixed;
+}
+.wysiwyg-dialog .summary-dialog-inner label {
+  display: block;
+}
+.wysiwyg-dialog .selection-menu button {
+  color: var(--text);
+}
+.wysiwyg-dialog .selection-menu .primary,
+.wysiwyg-dialog .summary-actions .commit {
+  color: #111;
+}
+.wysiwyg-dialog .wysiwyg-topright .tool.primary,
+.wysiwyg-dialog .wysiwyg-toolbar .tool.primary {
+  color: #111;
+}
+.wysiwyg-dialog .summary-node .toggle {
+  font-size: 11px;
+}
+.wysiwyg-dialog [contenteditable]:focus-visible {
+  outline: 2px solid #aaa;
+  outline-offset: 3px;
+}
