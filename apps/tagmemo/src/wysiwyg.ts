@@ -1,4 +1,4 @@
-import { createChevronRightIcon } from "./components/Icon.tsx";
+import { createSummaryNode, styleSummaryNode } from "./components/SummaryNode.tsx";
 
 const allowedTags = new Set([
   "P",
@@ -45,38 +45,6 @@ function cleanHtml(html) {
   return fragment;
 }
 
-function summaryNode(label, detail) {
-  const node = document.createElement("span");
-  node.className = "summary-node open";
-  node.contentEditable = "false";
-  const head = document.createElement("span");
-  head.className = "summary-head";
-  const toggle = document.createElement("button");
-  toggle.className = "toggle";
-  toggle.type = "button";
-  toggle.append(createChevronRightIcon());
-  const text = document.createElement("span");
-  text.className = "summary-text";
-  text.contentEditable = "true";
-  text.textContent = label;
-  const meta = document.createElement("span");
-  meta.className = "summary-meta";
-  meta.textContent = "summary";
-  head.append(toggle, text, meta);
-  const body = document.createElement("span");
-  body.className = "summary-detail";
-  const clip = document.createElement("span");
-  clip.className = "summary-detail-clip";
-  const inner = document.createElement("span");
-  inner.className = "summary-detail-inner";
-  inner.contentEditable = "true";
-  inner.append(detail);
-  clip.append(inner);
-  body.append(clip);
-  node.append(head, body);
-  return node;
-}
-
 function flatten(fragment) {
   const result = document.createDocumentFragment();
   const visit = (node) => {
@@ -97,22 +65,7 @@ function flatten(fragment) {
 }
 
 function wireSummaryNodes(root) {
-  for (const node of root.querySelectorAll(".summary-node")) {
-    node.setAttribute("contenteditable", "false");
-    node
-      .querySelector(":scope > .summary-head > .summary-text")
-      ?.setAttribute("contenteditable", "true");
-    node
-      .querySelector(":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner")
-      ?.setAttribute("contenteditable", "true");
-    const toggle = node.querySelector(":scope > .summary-head > .toggle");
-    toggle?.replaceChildren(createChevronRightIcon());
-    toggle?.setAttribute("aria-expanded", String(node.classList.contains("open")));
-    toggle?.setAttribute(
-      "aria-label",
-      node.classList.contains("open") ? "要約を閉じる" : "要約を開く",
-    );
-  }
+  for (const node of root.querySelectorAll(".summary-node")) styleSummaryNode(node);
 }
 
 export function setupWysiwyg() {
@@ -172,7 +125,7 @@ export function setupWysiwyg() {
     const label = input.value.trim();
     if (!label || !savedRange || !selectedDoc) return;
     const range = savedRange;
-    const node = summaryNode(label, flatten(range.extractContents()));
+    const node = createSummaryNode(label, flatten(range.extractContents()));
     range.insertNode(node);
     wireSummaryNodes(selectedDoc);
     closeSummary();
