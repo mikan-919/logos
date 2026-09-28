@@ -55,7 +55,24 @@ function TagStateRow({ tag, onState }) {
   );
 }
 
-export function TagStateDrawer({ open, note, candidates, inferring, onClose, onState }) {
+export function TagStateDrawer({
+  open,
+  note,
+  candidates,
+  inferring,
+  query,
+  busy,
+  onClose,
+  onState,
+  onCreateTag,
+}) {
+  const tagName = () => query().trim().replace(/^#/, "");
+  const exactTag = () =>
+    candidates().find((tag) => tag.name.toLocaleLowerCase() === tagName().toLocaleLowerCase());
+  const visibleTags = () =>
+    candidates().filter((tag) =>
+      tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()),
+    );
   render(
     <div
       class="stream-tag-backdrop"
@@ -77,14 +94,47 @@ export function TagStateDrawer({ open, note, candidates, inferring, onClose, onS
         </header>
         <div class="stream-tag-drawer-body">
           <div class="stream-tag-state-card">
+            <form
+              class="stream-tag-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const name = tagName();
+                if (!name || busy()) return;
+                const existing = exactTag();
+                if (existing) {
+                  onState(existing, "on");
+                  query("");
+                } else {
+                  onCreateTag(name).then((created) => {
+                    if (created) query("");
+                  });
+                }
+              }}
+            >
+              <label for="tag-drawer-search">タグを検索・追加</label>
+              <div>
+                <input
+                  id="tag-drawer-search"
+                  type="search"
+                  maxlength="100"
+                  autocomplete="off"
+                  disabled={!note()}
+                  value={query()}
+                  onInput={(event) => query(event.currentTarget.value)}
+                />
+                <button type="submit" disabled={!note() || !tagName() || busy()}>
+                  {exactTag() ? "付ける" : "作成"}
+                </button>
+              </div>
+            </form>
             <div class="stream-tag-state-head">
               <div>
                 <h2>タグ</h2>
-                <p>オフ・自動・オンを一覧で管理します。</p>
+                <p>既存のタグを選び、オンにするとメモに付きます。</p>
               </div>
               <small>オフ　自動　オン</small>
             </div>
-            {candidates().map((tag) => (
+            {visibleTags().map((tag) => (
               <TagStateRow key={tag.id} tag={tag} onState={onState} />
             ))}
             <p class="stream-tag-empty" data-hidden={!inferring()}>
@@ -93,8 +143,17 @@ export function TagStateDrawer({ open, note, candidates, inferring, onClose, onS
             <p class="stream-tag-empty" data-hidden={Boolean(note())}>
               メモを選択してください。
             </p>
-            <p class="stream-tag-empty" data-hidden={!note() || candidates().length !== 0}>
+            <p
+              class="stream-tag-empty"
+              data-hidden={!note() || candidates().length !== 0 || Boolean(tagName())}
+            >
               タグはありません。
+            </p>
+            <p
+              class="stream-tag-empty"
+              data-hidden={!note() || !tagName() || visibleTags().length !== 0}
+            >
+              一致するタグはありません。作成するとこのメモに付きます。
             </p>
           </div>
         </div>

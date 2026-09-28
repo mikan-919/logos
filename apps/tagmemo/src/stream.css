@@ -733,6 +733,38 @@
   border-radius: 14px;
   background: #191919;
 }
+.stream-tag-search {
+  margin-bottom: 14px;
+}
+.stream-tag-search label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.stream-tag-search > div {
+  display: flex;
+  gap: 6px;
+}
+.stream-tag-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #343434;
+  border-radius: 8px;
+  background: #222;
+  font-size: 12px;
+}
+.stream-tag-search button {
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #343434;
+  font-size: 11px;
+}
+.stream-tag-search button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .stream-tag-state-head {
   display: flex;
   align-items: flex-start;

@@ -15,8 +15,12 @@ export function tagCandidates(note: Note, tags: Tag[], scores: Record<string, nu
     const inferred = scores[tag.id];
     const existing = values.get(tag.id);
     if (existing?.state === "auto" && inferred !== undefined) existing.score = inferred;
-    else if (!existing && inferred !== undefined)
-      values.set(tag.id, { id: tag.id, state: "auto", score: inferred });
+    else if (!existing)
+      values.set(tag.id, {
+        id: tag.id,
+        state: inferred === undefined ? "off" : "auto",
+        score: inferred ?? 0,
+      });
   }
   const rank = { on: 0, auto: 1, off: 2 };
   return [...values.values()]

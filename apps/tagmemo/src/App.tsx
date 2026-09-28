@@ -63,6 +63,7 @@ export function App() {
   const librarySort = signal("updated");
   const libraryQuery = signal("");
   const drawerOpen = signal(false);
+  const tagQuery = signal("");
   const accountOpen = signal(false);
   const extraKey = signal("");
   const extraValue = signal({});
@@ -131,7 +132,7 @@ export function App() {
           onTitleInput={editTitle}
           onBodyInput={editBody}
           onRemoveTag={(id) => setTagState({ id, score: 0 }, "off")}
-          onAddTag={addTagToNote}
+          onAddTag={() => openTagDrawer(true)}
           onDelete={removeMemo}
           onExtras={openExtras}
           extrasCount={() => extras().length}
@@ -171,8 +172,11 @@ export function App() {
           note={currentNote}
           candidates={candidates}
           inferring={inferring}
+          query={tagQuery}
+          busy={busy}
           onClose={() => drawerOpen(false)}
           onState={setTagState}
+          onCreateTag={createTagForNote}
         />
         <p class="stream-status" role="status" data-hidden={!status()}>
           {status()}
@@ -296,10 +300,16 @@ export function App() {
     libraryOpen(true);
   }
   function toggleDrawer() {
-    const opening = !drawerOpen();
-    drawerOpen(opening);
+    if (drawerOpen()) drawerOpen(false);
+    else openTagDrawer();
+  }
+  function openTagDrawer(focusSearch = false) {
+    tagQuery("");
+    drawerOpen(true);
     accountOpen(false);
-    if (opening) inferCurrentTags();
+    inferCurrentTags();
+    if (focusSearch)
+      requestAnimationFrame(() => document.getElementById("tag-drawer-search")?.focus());
   }
   function inferCurrentTags(note = currentNote(), useEditor = true) {
     const id = ++inferenceId;
@@ -437,23 +447,21 @@ export function App() {
       );
     markDirty();
   }
-  function addTagToNote() {
-    const name = prompt("タグ名")?.trim().replace(/^#/, "");
-    if (!name) return;
-    const existing = tags().find(
-      (tag) => tag.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
-    );
-    if (existing) setTagState({ id: existing.id, score: 1 }, "on");
-    else {
-      busy(true);
-      createTag(name)
-        .then(async (id) => {
-          applyData(await loadData());
-          busy(false);
-          if (drawerOpen()) inferCurrentTags();
-          setTagState({ id, score: 1 }, "on");
-        })
-        .catch(fail);
+  async function createTagForNote(name) {
+    if (busy() || !currentNote()) return false;
+    const selected = selectedId();
+    const draft = draftNew();
+    busy(true);
+    try {
+      const id = await createTag(name);
+      applyData(await loadData());
+      busy(false);
+      if (drawerOpen()) inferCurrentTags();
+      if (selectedId() === selected && draftNew() === draft) setTagState({ id, score: 1 }, "on");
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
     }
   }
   function addTagFromLibrary() {
