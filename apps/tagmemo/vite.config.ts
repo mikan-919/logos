@@ -11,11 +11,22 @@ if (!process.env.NODE_EXTRA_CA_CERTS && existsSync(caFile)) {
 const cloudflare = process.env.VITEST
   ? undefined
   : (await import("@cloudflare/vite-plugin")).cloudflare;
+const tagmemoSource = fileURLToPath(new URL("./src/", import.meta.url));
 
 export default defineConfig({
   server: { strictPort: true },
   plugins: [
     tailwindcss(),
+    {
+      name: "tagmemo:invalidate-irisout-entry",
+      hotUpdate({ file, server }) {
+        if (!file.startsWith(tagmemoSource) || !/\.[cm]?[jt]sx?$/.test(file)) return;
+        // Irisout recompiles this entry; Vite must discard its cached transform before reload.
+        const entry =
+          server.environments.client.moduleGraph.getModuleById("\0virtual:irisout-entry");
+        if (entry) server.environments.client.moduleGraph.invalidateModule(entry);
+      },
+    },
     irisout({ entry: "tagmemo/src/App.tsx", container: "#app" }),
     ...(cloudflare
       ? [
