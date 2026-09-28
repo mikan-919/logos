@@ -32,6 +32,41 @@ export function tagCandidates(note: Note, tags: Tag[], scores: Record<string, nu
     );
 }
 
+export function changedCharacters(before: string, after: string, limit: number): number {
+  const a = Array.from(before);
+  const b = Array.from(after);
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (
+    end < a.length - start &&
+    end < b.length - start &&
+    a[a.length - end - 1] === b[b.length - end - 1]
+  )
+    end++;
+  const n = a.length - start - end;
+  const m = b.length - start - end;
+  if (Math.abs(n - m) >= limit) return limit;
+  let previous = new Map<number, number>();
+  for (let j = 0; j <= Math.min(m, limit - 1); j++) previous.set(j, j);
+  for (let i = 1; i <= n; i++) {
+    const row = new Map<number, number>();
+    if (i < limit) row.set(0, i);
+    for (let j = Math.max(1, i - limit + 1); j <= Math.min(m, i + limit - 1); j++) {
+      row.set(
+        j,
+        Math.min(
+          (previous.get(j) ?? limit) + 1,
+          (row.get(j - 1) ?? limit) + 1,
+          (previous.get(j - 1) ?? limit) + (a[start + i - 1] === b[start + j - 1] ? 0 : 1),
+        ),
+      );
+    }
+    previous = row;
+  }
+  return previous.get(m) ?? limit;
+}
+
 function words(text: string) {
   return new Set(
     text.toLocaleLowerCase().match(/[a-z0-9_+-]{3,}|[\u3040-\u30ff\u3400-\u9fff]{2,}/g) ?? [],

@@ -14,7 +14,7 @@ import {
   writeMemoBody,
 } from "./data.ts";
 import { filterNotes } from "./filter-notes.ts";
-import { relatedOrder, tagCandidates } from "./tag-model.ts";
+import { changedCharacters, relatedOrder, tagCandidates } from "./tag-model.ts";
 import { setupWysiwyg } from "./wysiwyg.ts";
 import { AuthScreen } from "./components/AuthScreen.tsx";
 import { ExtrasDialog } from "./components/ExtrasDialog.tsx";
@@ -30,6 +30,7 @@ const initialNotes = (first?.notes ?? []).map((note) => ({
   tagStates: note.tagStates ?? note.tagIds.map((id) => ({ id, state: "on", score: 1 })),
 }));
 const editorState = { current: null, timer: null, suppressScrollUntil: 0 };
+const inferenceThreshold = 100;
 
 export function App() {
   const notes = signal(initialNotes);
@@ -55,7 +56,12 @@ export function App() {
   );
   const inferredScores = signal({});
   const inferring = signal(false);
-  let inferenceId = 0;
+  const inferredText = new Map<string, string>();
+  const inferredTags = new Map<string, string>();
+  const scoresByNote = new Map<string, Record<string, number>>();
+  const inferenceIds = new Map<string, number>();
+  const pendingInference = new Map<string, { text: string; tags: string; reportError: boolean }>();
+  let draftSerial = 0;
   const libraryOpen = signal(false);
   const libraryMode = signal("notes");
   const libraryFilter = signal("all");
@@ -71,6 +77,7 @@ export function App() {
   const currentNote = derived(
     () => draftNew() ?? notes().find((note) => note.id === selectedId()) ?? null,
   );
+  const currentKey = () => (currentNote() ? selectedId() || `draft:${draftSerial}` : null);
   const streamNotes = derived(() =>
     draftNew()
       ? [draftNew(), ...relatedOrder(notes(), streamSeed())]
@@ -253,6 +260,11 @@ export function App() {
         user(null);
         notes([]);
         tags([]);
+        inferredText.clear();
+        inferredTags.clear();
+        scoresByNote.clear();
+        inferenceIds.clear();
+        pendingInference.clear();
         status("");
       })
       .catch(fail);
@@ -312,21 +324,66 @@ export function App() {
       requestAnimationFrame(() => document.getElementById("tag-drawer-search")?.focus());
   }
   function inferCurrentTags(note = currentNote(), useEditor = true) {
-    const id = ++inferenceId;
-    inferredScores({});
-    inferring(false);
-    if (!note || !tags().length) return;
+    if (!note || !tags().length) {
+      if (note) {
+        const key = note.id || `draft:${draftSerial}`;
+        inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
+        pendingInference.delete(key);
+      }
+      inferredScores({});
+      inferring(false);
+      return;
+    }
+    const key = note.id || `draft:${draftSerial}`;
     const value = useEditor && note.id === selectedId() ? editorState.current?.get() : null;
-    inferring(true);
-    inferTagScores(value?.title ?? note.title, value?.text ?? note.body, tags())
+    const title = value?.title ?? note.title;
+    const body = value?.text ?? note.body;
+    if (
+      inferredText.get(key) === `${title}\n${body}` &&
+      inferredTags.get(key) === JSON.stringify(tags()) &&
+      scoresByNote.has(key)
+    ) {
+      inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
+      pendingInference.delete(key);
+      inferredScores(scoresByNote.get(key));
+      inferring(false);
+      return;
+    }
+    requestTagInference(key, title, body, true);
+  }
+  function requestTagInference(key: string, title: string, body: string, reportError: boolean) {
+    if (!tags().length) return;
+    const tagList = [...tags()];
+    const tagSignature = JSON.stringify(tagList);
+    const text = `${title}\n${body}`;
+    const pending = pendingInference.get(key);
+    if (pending?.text === text && pending.tags === tagSignature) {
+      pending.reportError ||= reportError;
+      return;
+    }
+    const request = { text, tags: tagSignature, reportError };
+    pendingInference.set(key, request);
+    const id = (inferenceIds.get(key) ?? 0) + 1;
+    inferenceIds.set(key, id);
+    if (currentKey() === key) {
+      inferredScores({});
+      inferring(true);
+    }
+    inferTagScores(title, body, tagList)
       .then((scores) => {
-        if (id === inferenceId) inferredScores(scores);
+        if (inferenceIds.get(key) !== id) return;
+        inferredText.set(key, text);
+        inferredTags.set(key, tagSignature);
+        scoresByNote.set(key, scores);
+        if (currentKey() === key) inferredScores(scores);
       })
       .catch((error) => {
-        if (id === inferenceId) status(error?.message ?? "タグの推定に失敗しました");
+        if (request.reportError && inferenceIds.get(key) === id && currentKey() === key)
+          status(error?.message ?? "タグの推定に失敗しました");
       })
       .finally(() => {
-        if (id === inferenceId) inferring(false);
+        if (pendingInference.get(key) === request) pendingInference.delete(key);
+        if (inferenceIds.get(key) === id && currentKey() === key) inferring(false);
       });
   }
   function followScroll(event) {
@@ -357,6 +414,10 @@ export function App() {
       activeTitle(note.title);
       tagStates(note.tagStates ?? []);
       if (drawerOpen()) inferCurrentTags(note, false);
+      else {
+        inferredScores({});
+        inferring(false);
+      }
       accountOpen(false);
     }
   }
@@ -370,6 +431,10 @@ export function App() {
     activeTitle(note.title);
     tagStates(note.tagStates ?? []);
     if (drawerOpen()) inferCurrentTags(note, false);
+    else {
+      inferredScores({});
+      inferring(false);
+    }
     libraryOpen(false);
     editorState.suppressScrollUntil = performance.now() + 650;
     requestAnimationFrame(() => {
@@ -381,6 +446,9 @@ export function App() {
   }
   function newMemo() {
     if (dirty()) save();
+    draftSerial++;
+    inferredScores({});
+    inferring(false);
     const note = {
       id: "",
       title: "",
@@ -489,6 +557,10 @@ export function App() {
     } else {
       const draft = draftNew();
       const existing = draft ? null : notes().find((note) => note.id === selectedId());
+      const key = existing?.id || `draft:${draftSerial}`;
+      const baseline = inferredText.get(key) ?? `${currentNote().title}\n${currentNote().body}`;
+      inferredText.set(key, baseline);
+      const savedText = `${title}\n${value.text}`;
       const states = [...tagStates()];
       const ids = states.filter((item) => item.state !== "off").map((item) => item.id);
       dirty(false);
@@ -496,6 +568,18 @@ export function App() {
       status("");
       saveMemo(existing, title, writeMemoBody(value.text, value.html), ids, states)
         .then(async (id) => {
+          if (draft) {
+            inferredText.set(id, inferredText.get(key) ?? baseline);
+            const cached = scoresByNote.get(key);
+            if (cached) scoresByNote.set(id, cached);
+            const signature = inferredTags.get(key);
+            if (signature) inferredTags.set(id, signature);
+            inferredText.delete(key);
+            inferredTags.delete(key);
+            scoresByNote.delete(key);
+            inferenceIds.delete(key);
+            pendingInference.delete(key);
+          }
           if (draft && draftNew() === draft) {
             selectedId(id);
             draftNew(null);
@@ -503,7 +587,11 @@ export function App() {
           }
           applyData(await loadData());
           busy(false);
-          if (drawerOpen()) inferCurrentTags();
+          if (
+            changedCharacters(inferredText.get(id) ?? baseline, savedText, inferenceThreshold) >=
+            inferenceThreshold
+          )
+            requestTagInference(id, title, value.text, false);
         })
         .catch((error) => {
           dirty(true);
