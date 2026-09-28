@@ -5,6 +5,7 @@ import {
   createTag,
   deleteMemo,
   editableExtras,
+  inferTagScores,
   loadData,
   mergeOrDeleteTag,
   renameTag,
@@ -52,6 +53,9 @@ export function App() {
       first?.notes[0]?.tagIds?.map((id) => ({ id, state: "on", score: 1 })) ??
       [],
   );
+  const inferredScores = signal({});
+  const inferring = signal(false);
+  let inferenceId = 0;
   const libraryOpen = signal(false);
   const libraryMode = signal("notes");
   const libraryFilter = signal("all");
@@ -75,7 +79,9 @@ export function App() {
     filterNotes(notes(), libraryFilter(), libraryTag(), libraryQuery(), librarySort()),
   );
   const candidates = derived(() =>
-    currentNote() ? tagCandidates({ ...currentNote(), tagStates: tagStates() }, tags()) : [],
+    currentNote()
+      ? tagCandidates({ ...currentNote(), tagStates: tagStates() }, tags(), inferredScores())
+      : [],
   );
   const extras = derived(() => editableExtras(currentNote(), types()));
   const activeExtra = derived(() => extras().find((item) => item.type_key === extraKey()));
@@ -164,6 +170,7 @@ export function App() {
           open={drawerOpen}
           note={currentNote}
           candidates={candidates}
+          inferring={inferring}
           onClose={() => drawerOpen(false)}
           onState={setTagState}
         />
@@ -289,8 +296,28 @@ export function App() {
     libraryOpen(true);
   }
   function toggleDrawer() {
-    drawerOpen(!drawerOpen());
+    const opening = !drawerOpen();
+    drawerOpen(opening);
     accountOpen(false);
+    if (opening) inferCurrentTags();
+  }
+  function inferCurrentTags(note = currentNote(), useEditor = true) {
+    const id = ++inferenceId;
+    inferredScores({});
+    inferring(false);
+    if (!note || !tags().length) return;
+    const value = useEditor && note.id === selectedId() ? editorState.current?.get() : null;
+    inferring(true);
+    inferTagScores(value?.title ?? note.title, value?.text ?? note.body, tags())
+      .then((scores) => {
+        if (id === inferenceId) inferredScores(scores);
+      })
+      .catch((error) => {
+        if (id === inferenceId) status(error?.message ?? "タグの推定に失敗しました");
+      })
+      .finally(() => {
+        if (id === inferenceId) inferring(false);
+      });
   }
   function followScroll(event) {
     if (performance.now() < editorState.suppressScrollUntil) return;
@@ -319,6 +346,7 @@ export function App() {
       selectedId(id);
       activeTitle(note.title);
       tagStates(note.tagStates ?? []);
+      if (drawerOpen()) inferCurrentTags(note, false);
       accountOpen(false);
     }
   }
@@ -331,6 +359,7 @@ export function App() {
     selectedId(id);
     activeTitle(note.title);
     tagStates(note.tagStates ?? []);
+    if (drawerOpen()) inferCurrentTags(note, false);
     libraryOpen(false);
     editorState.suppressScrollUntil = performance.now() + 650;
     requestAnimationFrame(() => {
@@ -421,6 +450,7 @@ export function App() {
         .then(async (id) => {
           applyData(await loadData());
           busy(false);
+          if (drawerOpen()) inferCurrentTags();
           setTagState({ id, score: 1 }, "on");
         })
         .catch(fail);
@@ -465,6 +495,7 @@ export function App() {
           }
           applyData(await loadData());
           busy(false);
+          if (drawerOpen()) inferCurrentTags();
         })
         .catch((error) => {
           dirty(true);

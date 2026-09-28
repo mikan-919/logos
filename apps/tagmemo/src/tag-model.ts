@@ -9,31 +9,13 @@ type Note = {
   tagStates: TagState[];
 };
 
-const rules: [string, string[]][] = [
-  ["programming", ["code", "runtime", "compiler", "api", "実装"]],
-  ["ui", ["ui", "画面", "デザイン", "wysiwyg"]],
-  ["llm", ["llm", "model", "モデル", "jev", "ai"]],
-  ["research", ["研究", "論文", "調べ"]],
-  ["idea", ["アイデア", "idea", "構想"]],
-  ["tagmemo", ["tagmemo", "タグ"]],
-  ["compiler", ["compiler", "コンパイラ", "静的解析"]],
-  ["navigation", ["navigation", "関連", "スクロール", "移動"]],
-];
-
-export function tagCandidates(note: Note, tags: Tag[]) {
-  const text = `${note.title} ${note.body}`.toLocaleLowerCase();
+export function tagCandidates(note: Note, tags: Tag[], scores: Record<string, number> = {}) {
   const values = new Map(note.tagStates.map((entry) => [entry.id, { ...entry }]));
   for (const tag of tags) {
-    const rule = rules.find(([name]) => name === tag.name.toLocaleLowerCase());
-    const inferred = rule
-      ? Math.min(
-          0.96,
-          0.26 + rule[1].reduce((sum, word) => sum + (text.includes(word) ? 0.22 : 0), 0),
-        )
-      : 0.28;
+    const inferred = scores[tag.id];
     const existing = values.get(tag.id);
-    if (existing?.state === "auto") existing.score = Math.max(existing.score, inferred);
-    else if (!existing && inferred >= 0.28)
+    if (existing?.state === "auto" && inferred !== undefined) existing.score = inferred;
+    else if (!existing && inferred !== undefined)
       values.set(tag.id, { id: tag.id, state: "auto", score: inferred });
   }
   const rank = { on: 0, auto: 1, off: 2 };

@@ -55,7 +55,7 @@ function TagStateRow({ tag, onState }) {
   );
 }
 
-export function TagStateDrawer({ open, note, candidates, onClose, onState }) {
+export function TagStateDrawer({ open, note, candidates, inferring, onClose, onState }) {
   render(
     <div
       class="stream-tag-backdrop"
@@ -87,6 +87,9 @@ export function TagStateDrawer({ open, note, candidates, onClose, onState }) {
             {candidates().map((tag) => (
               <TagStateRow key={tag.id} tag={tag} onState={onState} />
             ))}
+            <p class="stream-tag-empty" data-hidden={!inferring()}>
+              タグを推定しています。
+            </p>
             <p class="stream-tag-empty" data-hidden={Boolean(note())}>
               メモを選択してください。
             </p>

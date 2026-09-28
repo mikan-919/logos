@@ -2,7 +2,7 @@
 
 irisout で構築したタグ付きメモのアプリ。メモ、タグ、名前、タグとの関連を Logos API の Entity と Component に保存する。別アプリが付けた Component は、単純な項目を編集できる場合に限り、メモ編集画面の `n components` から開ける。
 
-メモの編集画面では文章の一部を選んで要約を付けられる。要約を開くと元の文章が同じ位置に表示される。本文の HTML と一覧・検索用の文章は `tagmemo.memo` の `body` 文字列に保存する。従来のプレーンテキストのメモも編集できる。
+メモの編集画面では文章の一部を選んで要約を付けられる。要約を開くと元の文章が同じ位置に表示される。本文の HTML と一覧・検索用の文章は `tagmemo.memo` の `body` 文字列に保存する。従来のプレーンテキストのメモも編集できる。タグ一覧を開くと、TagMemo Worker がメモの題名と本文を Jev に送り、既存タグごとの該当確率を表示する。
 
 ログイン済みの初回 HTML には、その利用者が閲覧できるメモとタグを TagMemo Worker が Logos API から取得して埋め込む。画面の読み込み後は irisout が操作を引き継ぐ。追加、保存、削除はすぐ画面に反映し、API が失敗した場合は元に戻す。
 
@@ -10,7 +10,7 @@ irisout で構築したタグ付きメモのアプリ。メモ、タグ、名前
 
 Turso でデータベースと認証トークンを用意する。`apps/logos/.dev.vars.example` を `apps/logos/.dev.vars` にコピーし、四つの必須値を設定する。`BETTER_AUTH_URL` はブラウザで開く TagMemo のオリジン（例: `http://localhost:5173`）にする。別ホストのアプリを追加する場合は、そのホストを `BETTER_AUTH_ALLOWED_HOSTS` にカンマ区切りで設定する。`.dev.vars` は Git の管理対象外。TagMemo Worker にデータベースの接続情報は設定しない。
 
-リポジトリのルートで起動する。
+タグ推定を使う場合は `apps/tagmemo/.dev.vars` に `TYPESAFE_API_KEY` を設定する。値は TypeSafe AI の API 鍵。鍵がない場合、タグ推定は利用できない。リポジトリのルートで起動する。
 
 ```sh
 vp install
@@ -35,6 +35,13 @@ vp exec wrangler secret put BETTER_AUTH_SECRET --config wrangler.jsonc
 ```
 
 別ホストのアプリを追加する場合は、`apps/logos` で `vp exec wrangler secret put BETTER_AUTH_ALLOWED_HOSTS --config wrangler.jsonc` を実行し、ホスト名をカンマ区切りで登録する。リポジトリのルートに戻り、両 Worker をビルドして配置する。初回はサービス結合の接続先である Logos Worker を先に配置する。
+
+タグ推定を使う場合は、TagMemo Worker にも API 鍵を登録する。
+
+```sh
+cd apps/tagmemo
+vp exec wrangler secret put TYPESAFE_API_KEY --config wrangler.jsonc
+```
 
 ```sh
 vp build

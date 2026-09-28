@@ -7,6 +7,25 @@ type Memo = { id: string; components: Entity["components"] };
 type ComponentType = { key: string; schema?: { properties?: Record<string, { type: string }> } };
 export type TagState = { id: string; state: "off" | "auto" | "on"; score: number };
 
+export async function inferTagScores(
+  title: string,
+  body: string,
+  tags: { id: string; name: string }[],
+): Promise<Record<string, number>> {
+  const response = await fetch("/tagmemo/infer-tags", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, body, tags }),
+  });
+  const result = (await response.json().catch(() => ({}))) as {
+    scores?: Record<string, number>;
+    error?: string;
+  };
+  if (!response.ok)
+    throw new Error(result.error ?? `タグの推定に失敗しました (${response.status})`);
+  return result.scores ?? {};
+}
+
 async function api(
   path: string,
   method = "GET",

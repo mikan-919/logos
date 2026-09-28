@@ -13,6 +13,7 @@
       "/tagmemo",
       "/tagmemo/",
       "/tagmemo/index.html",
+      "/tagmemo/infer-tags",
     ],
   },
 }
