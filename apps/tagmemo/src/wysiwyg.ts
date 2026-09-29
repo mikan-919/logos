@@ -126,11 +126,18 @@ export function setupWysiwyg() {
     const label = input.value.trim();
     if (!label || !savedRange || !selectedDoc) return;
     const range = savedRange;
+    const doc = selectedDoc;
     const node = createSummaryNode(label, flatten(range.extractContents()));
     range.insertNode(node);
-    wireSummaryNodes(selectedDoc);
+    wireSummaryNodes(doc);
     closeSummary();
-    selectedDoc.dispatchEvent(new Event("input", { bubbles: true }));
+    doc.focus();
+    range.setStartAfter(node);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    doc.dispatchEvent(new Event("input", { bubbles: true }));
   }
   root.addEventListener("mousedown", (event) => {
     if (
@@ -183,7 +190,8 @@ export function setupWysiwyg() {
   root.addEventListener("keydown", (event) => {
     const target = (event.target as Element).closest(".summary-text, .summary-detail-inner");
     if (
-      event.key !== " " ||
+      (event.code !== "Space" && event.key !== " " && event.key !== "　") ||
+      event.isComposing ||
       event.repeat ||
       event.altKey ||
       event.ctrlKey ||
@@ -204,16 +212,9 @@ export function setupWysiwyg() {
       return;
     }
     const range = selection.getRangeAt(0);
-    const tail = range.cloneRange();
-    tail.selectNodeContents(target);
-    tail.setStart(range.endContainer, range.endOffset);
-    if (tail.toString()) {
-      spaceTarget = null;
-      return;
-    }
     if (spaceTarget === target && range.startContainer.nodeType === Node.TEXT_NODE) {
       const text = range.startContainer.textContent ?? "";
-      if (/[ \u00a0]/.test(text[range.startOffset - 1] ?? "")) {
+      if (/[ \u00a0\u3000]/.test(text[range.startOffset - 1] ?? "")) {
         event.preventDefault();
         range.setStart(range.startContainer, range.startOffset - 1);
         range.deleteContents();
@@ -258,6 +259,16 @@ export function setupWysiwyg() {
     if (event.target === modal) closeSummary();
   });
   input.addEventListener("keydown", (event) => {
+    if (
+      (event.code === "Space" || event.key === " " || event.key === "　") &&
+      !event.isComposing &&
+      /[ \u3000]$/.test(input.value) &&
+      !event.repeat
+    ) {
+      event.preventDefault();
+      createSummary();
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
       createSummary();
