@@ -14,10 +14,14 @@ Turso でデータベースと認証トークンを用意する。`apps/logos/.d
 
 ```sh
 vp install
-vp run @logos/server#dev
+vpr dev
 ```
 
-別の端末で TagMemo を起動する。
+`vpr dev` は Logos Worker と TagMemo を順に起動する。別々に起動する場合は、二つの端末で次を実行する。
+
+```sh
+vp run @logos/server#dev
+```
 
 ```sh
 vp dev

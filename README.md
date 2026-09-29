@@ -8,10 +8,14 @@ Turso の接続情報と Better Auth の設定を `apps/logos/.dev.vars` に用�
 
 ```sh
 vp install
-vp run @logos/server#dev
+vpr dev
 ```
 
-別の端末で TagMemo を起動する。
+`vpr dev` は Logos Worker を 8787 番で起動してから TagMemo を 5173 番で起動する。別々に起動する場合は、二つの端末で次を実行する。
+
+```sh
+vp run @logos/server#dev
+```
 
 ```sh
 vp dev
