@@ -255,7 +255,8 @@ export function App() {
     if (focusSearch)
       requestAnimationFrame(() => document.getElementById("tag-drawer-search")?.focus());
   }
-  function inferCurrentTags(note = currentNote(), useEditor = true) {
+  function inferCurrentTags(note = null, useEditor = true) {
+    note ??= currentNote();
     if (!note || !tags().length) {
       if (note) {
         const key = note.id || `draft:${editorState.draftSerial}`;
