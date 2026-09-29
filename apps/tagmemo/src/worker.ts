@@ -87,7 +87,7 @@ export default {
   async fetch(request: Request, env: Env) {
     const path = new URL(request.url).pathname;
     if (path === "/tagmemo/infer-tags") return inferTags(request, env);
-    if (path.startsWith("/api/")) return env.LOGOS.fetch(request);
+    if (path.startsWith("/api/") || path === "/mcp") return env.LOGOS.fetch(request);
     if (
       request.method === "GET" &&
       (path === "/" || path === "/index.html" || path === "/tagmemo")
