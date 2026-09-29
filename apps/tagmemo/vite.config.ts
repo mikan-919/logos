@@ -13,35 +13,46 @@ const cloudflare = process.env.VITEST
   : (await import("@cloudflare/vite-plugin")).cloudflare;
 const tagmemoSource = fileURLToPath(new URL("./src/", import.meta.url));
 
-export default defineConfig({
-  server: { strictPort: true },
-  plugins: [
-    tailwindcss(),
-    {
-      name: "tagmemo:invalidate-irisout-entry",
-      hotUpdate({ file, server }) {
-        if (!file.startsWith(tagmemoSource) || !/\.[cm]?[jt]sx?$/.test(file)) return;
-        // Irisout recompiles this entry; Vite must discard its cached transform before reload.
-        const entry =
-          server.environments.client.moduleGraph.getModuleById("\0virtual:irisout-entry");
-        if (entry) server.environments.client.moduleGraph.invalidateModule(entry);
+export function tagmemoConfig(command: string) {
+  return {
+    server: { strictPort: true },
+    plugins: [
+      tailwindcss(),
+      {
+        name: "tagmemo:invalidate-irisout-entry",
+        hotUpdate({ file, server }) {
+          if (!file.startsWith(tagmemoSource) || !/\.[cm]?[jt]sx?$/.test(file)) return;
+          // Irisout recompiles this entry; Vite must discard its cached transform before reload.
+          const entry =
+            server.environments.client.moduleGraph.getModuleById("\0virtual:irisout-entry");
+          if (entry) server.environments.client.moduleGraph.invalidateModule(entry);
+        },
+      },
+      irisout({ entry: "tagmemo/src/App.tsx", container: "#app" }),
+      ...(cloudflare
+        ? [
+            cloudflare({
+              configPath: fileURLToPath(new URL("./wrangler.jsonc", import.meta.url)),
+              auxiliaryWorkers:
+                command === "build"
+                  ? [
+                      {
+                        configPath: fileURLToPath(
+                          new URL("../logos/wrangler.jsonc", import.meta.url),
+                        ),
+                      },
+                    ]
+                  : [],
+            }),
+          ]
+        : []),
+    ],
+    build: {
+      rollupOptions: {
+        input: fileURLToPath(new URL("./index.html", import.meta.url)),
       },
     },
-    irisout({ entry: "tagmemo/src/App.tsx", container: "#app" }),
-    ...(cloudflare
-      ? [
-          cloudflare({
-            configPath: fileURLToPath(new URL("./wrangler.jsonc", import.meta.url)),
-            auxiliaryWorkers: [
-              { configPath: fileURLToPath(new URL("../logos/wrangler.jsonc", import.meta.url)) },
-            ],
-          }),
-        ]
-      : []),
-  ],
-  build: {
-    rollupOptions: {
-      input: fileURLToPath(new URL("./index.html", import.meta.url)),
-    },
-  },
-});
+  };
+}
+
+export default defineConfig(({ command }) => tagmemoConfig(command));

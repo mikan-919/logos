@@ -14,12 +14,18 @@ Turso でデータベースと認証トークンを用意する。`apps/logos/.d
 
 ```sh
 vp install
+vp run @logos/server#dev
+```
+
+別の端末で TagMemo を起動する。
+
+```sh
 vp dev
 ```
 
-`http://localhost:5173/` で画面が、同じポートの `/api/*` で Logos API が動く。以前の `/tagmemo/` は `/` に転送する。TagMemo Worker がサービス結合を使って Logos Worker に要求を転送する。登録画面から利用者を作成できる。
+Logos Worker は `http://localhost:8787/`、TagMemo の画面は `http://localhost:5173/` で動く。画面からの `/api/*` は TagMemo Worker がサービス結合を使って Logos Worker に転送する。以前の `/tagmemo/` は `/` に転送する。登録画面から利用者を作成できる。
 
-Linux では開発用 Worker に OS の認証局一覧を読み込ませる。証明書が信頼できないというエラーが続く環境では、`NODE_EXTRA_CA_CERTS` にその環境の認証局一覧ファイルを指定してから `vp dev` を実行する。
+Linux では開発用 Worker に OS の認証局一覧を読み込ませる。証明書が信頼できないというエラーが続く環境では、両方の起動コマンドに `NODE_EXTRA_CA_CERTS` でその環境の認証局一覧ファイルを指定する。
 
 ## Cloudflare Workers への配置
 

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
+    "dev": "wrangler dev --config wrangler.jsonc --port 8787",
     "test": "vp test",
     "deploy": "wrangler deploy --config ../../apps/dist/logos/wrangler.json",
     "deploy:check": "wrangler deploy --config ../../apps/dist/logos/wrangler.json --dry-run"
