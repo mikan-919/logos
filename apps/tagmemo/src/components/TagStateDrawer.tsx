@@ -1,5 +1,6 @@
 import { derived, render } from "irisout";
 import { createTag, loadData } from "../data.ts";
+import { isDisplayedTag } from "../tag-model.ts";
 import { Icon } from "./Icon.tsx";
 
 function TagStateRow({ tag, onState }) {
@@ -76,8 +77,10 @@ export function TagStateDrawer({
     candidates().find((tag) => tag.name.toLocaleLowerCase() === tagName().toLocaleLowerCase()),
   );
   const visibleTags = derived(() =>
-    candidates().filter((tag) =>
-      tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()),
+    candidates().filter(
+      (tag) =>
+        tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()) &&
+        (tagName() || isDisplayedTag(tag)),
     ),
   );
   render(
@@ -150,9 +153,9 @@ export function TagStateDrawer({
             </p>
             <p
               class="stream-tag-empty"
-              data-hidden={!note() || candidates().length !== 0 || Boolean(tagName())}
+              data-hidden={!note() || visibleTags().length !== 0 || Boolean(tagName())}
             >
-              タグはありません。
+              表示するタグはありません。
             </p>
             <p
               class="stream-tag-empty"

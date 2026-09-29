@@ -9,6 +9,10 @@ type Note = {
   tagStates: TagState[];
 };
 
+export function isDisplayedTag(tag: TagState) {
+  return tag.state === "on" || (tag.state === "auto" && tag.score >= 0.5);
+}
+
 export function tagCandidates(note: Note, tags: Tag[], scores: Record<string, number> = {}) {
   const values = new Map(note.tagStates.map((entry) => [entry.id, { ...entry }]));
   for (const tag of tags) {

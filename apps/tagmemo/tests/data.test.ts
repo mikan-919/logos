@@ -63,13 +63,15 @@ test("タグのオフ・自動・オンと確信度を DB に保存して再取�
     await registerComponentTypes(fetch);
     const on = await createTag("手動");
     const auto = await createTag("自動");
+    const low = await createTag("低確率");
     const off = await createTag("除外");
     const states = [
       { id: on, state: "on" as const, score: 1 },
       { id: auto, state: "auto" as const, score: 0.72 },
+      { id: low, state: "auto" as const, score: 0.49 },
       { id: off, state: "off" as const, score: 0 },
     ];
-    const id = await saveMemo(null, "分類", "本文", [on, auto], states);
+    const id = await saveMemo(null, "分類", "本文", [on, auto, low], states);
     const note = (await loadData()).notes.find((item) => item.id === id);
     expect(note?.tagStates).toEqual(states);
     expect(note?.tagIds).toEqual([on, auto]);

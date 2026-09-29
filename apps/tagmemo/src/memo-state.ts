@@ -1,6 +1,8 @@
+import { isDisplayedTag } from "./tag-model.ts";
+
 export function keepEditedNote(notes, selectedId, edited, states, tags) {
   if (!edited || !selectedId) return notes;
-  const tagIds = states.filter((tag) => tag.state !== "off").map((tag) => tag.id);
+  const tagIds = states.filter(isDisplayedTag).map((tag) => tag.id);
   const tagLabels = tags
     .filter((tag) => tagIds.includes(tag.id))
     .map((tag) => ({ id: tag.id, name: tag.name }));

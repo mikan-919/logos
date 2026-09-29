@@ -1,4 +1,5 @@
 import { checked, logosApi } from "./api-client.ts";
+import { isDisplayedTag } from "./tag-model.ts";
 
 type Entity = {
   id: string;
@@ -100,7 +101,7 @@ export async function loadData(fetcher = fetch) {
     const tagStates = (
       savedStates ?? legacyTagIds.map((id) => ({ id, state: "on", score: 1 }))
     ).filter((tag) => tagNames.has(tag.id));
-    const tagIds = tagStates.filter((tag) => tag.state !== "off").map((tag) => tag.id);
+    const tagIds = tagStates.filter(isDisplayedTag).map((tag) => tag.id);
     const body = readMemoBody(component(entity, "tagmemo.memo")?.value.body ?? "");
     return {
       id: entity.id,
@@ -186,7 +187,7 @@ export async function mergeOrDeleteTag(
         target.score = 1;
       }
     }
-    const ids = states.filter((tag) => tag.state !== "off").map((tag) => tag.id);
+    const ids = states.filter(isDisplayedTag).map((tag) => tag.id);
     await saveMemo(note, note.title, writeMemoBody(note.body, note.bodyHtml), ids, states);
   }
   await deleteMemo(sourceId);

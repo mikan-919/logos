@@ -10,7 +10,7 @@ import {
   saveMemo,
   writeMemoBody,
 } from "./data.ts";
-import { changedCharacters, relatedOrder, tagCandidates } from "./tag-model.ts";
+import { changedCharacters, isDisplayedTag, relatedOrder, tagCandidates } from "./tag-model.ts";
 import { setupWysiwyg } from "./wysiwyg.ts";
 import { AuthFlow } from "./components/AuthFlow.tsx";
 import { ExtrasFlow } from "./components/ExtrasFlow.tsx";
@@ -388,7 +388,7 @@ export function App() {
       ...tagStates().filter((item) => item.id !== tag.id),
       { id: tag.id, state, score: state === "on" ? 1 : state === "off" ? 0 : (tag.score ?? 0.5) },
     ];
-    const ids = next.filter((item) => item.state !== "off").map((item) => item.id);
+    const ids = next.filter(isDisplayedTag).map((item) => item.id);
     const labels = tags()
       .filter((item) => ids.includes(item.id))
       .map((item) => ({ id: item.id, name: item.name }));
@@ -421,7 +421,7 @@ export function App() {
       inferredText.set(key, baseline);
       const savedText = `${title}\n${value.text}`;
       const states = [...tagStates()];
-      const ids = states.filter((item) => item.state !== "off").map((item) => item.id);
+      const ids = states.filter(isDisplayedTag).map((item) => item.id);
       dirty(false);
       busy(true);
       status("");
