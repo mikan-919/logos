@@ -29,7 +29,7 @@ vp dev
 
 Logos Worker は `http://localhost:8787/`、TagMemo の画面は `http://localhost:5173/` で動く。画面からの `/api/*` は TagMemo Worker がサービス結合を使って Logos Worker に転送する。以前の `/tagmemo/` は `/` に転送する。登録画面から利用者を作成できる。
 
-Linux では開発用 Worker に OS の認証局一覧を読み込ませる。証明書が信頼できないというエラーが続く環境では、両方の起動コマンドに `NODE_EXTRA_CA_CERTS` でその環境の認証局一覧ファイルを指定する。
+`vpr dev` は `NODE_EXTRA_CA_CERTS` が未設定なら、`SSL_CERT_FILE` または Linux の認証局ファイルを Worker に渡す。証明書が信頼できないというエラーが続く環境では、`NODE_EXTRA_CA_CERTS=/path/to/ca.pem vpr dev` の形でその環境の認証局ファイルを指定する。
 
 ## Cloudflare Workers への配置
 

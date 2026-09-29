@@ -13,6 +13,8 @@ vpr dev
 
 `vpr dev` は Logos Worker を 8787 番で起動してから TagMemo を 5173 番で起動する。別々に起動する場合は、二つの端末で次を実行する。
 
+`vpr dev` は `NODE_EXTRA_CA_CERTS` が未設定なら、`SSL_CERT_FILE` または Linux の認証局ファイルを Worker に渡す。別の認証局ファイルが必要な環境では、`NODE_EXTRA_CA_CERTS=/path/to/ca.pem vpr dev` とする。
+
 ```sh
 vp run @logos/server#dev
 ```

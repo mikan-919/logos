@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
+
+const caFile = process.env.SSL_CERT_FILE || "/etc/ssl/certs/ca-certificates.crt";
+if (!process.env.NODE_EXTRA_CA_CERTS && existsSync(caFile)) {
+  process.env.NODE_EXTRA_CA_CERTS = caFile;
+}
 
 const children = [];
 let stopping = false;
