@@ -77,7 +77,6 @@ export function setupWysiwyg() {
   const crumb = document.getElementById("editor-crumb") as HTMLElement;
   let savedRange = null;
   let selectedDoc = null;
-  let spaceTarget: Element | null = null;
   const activeDoc = () =>
     root.querySelector(".stream-note.active .stream-doc") as HTMLElement | null;
   const activeTitle = () =>
@@ -184,55 +183,27 @@ export function setupWysiwyg() {
   root.addEventListener("drop", (event) => {
     if ((event.target as Element).closest(".stream-doc")) event.preventDefault();
   });
-  root.addEventListener("pointerdown", () => {
-    spaceTarget = null;
-  });
-  root.addEventListener("keydown", (event) => {
+  root.addEventListener("input", (event) => {
     const target = (event.target as Element).closest(".summary-text, .summary-detail-inner");
-    if (
-      (event.code !== "Space" && event.key !== " " && event.key !== "　") ||
-      event.isComposing ||
-      event.repeat ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      !target ||
-      !target.closest(".stream-doc")
-    ) {
-      spaceTarget = null;
-      return;
-    }
+    if (!target || !target.closest(".stream-doc")) return;
     const selection = window.getSelection();
-    if (
-      !selection?.rangeCount ||
-      !selection.isCollapsed ||
-      !target.contains(selection.anchorNode)
-    ) {
-      spaceTarget = null;
+    if (!selection?.rangeCount || !selection.isCollapsed || !target.contains(selection.anchorNode))
       return;
-    }
     const range = selection.getRangeAt(0);
-    if (spaceTarget === target && range.startContainer.nodeType === Node.TEXT_NODE) {
-      const text = range.startContainer.textContent ?? "";
-      if (/[ \u00a0\u3000]/.test(text[range.startOffset - 1] ?? "")) {
-        event.preventDefault();
-        range.setStart(range.startContainer, range.startOffset - 1);
-        range.deleteContents();
-        const node = target.closest(".summary-node");
-        if (node) {
-          const doc = node.closest(".stream-doc") as HTMLElement;
-          doc.focus();
-          range.setStartAfter(node);
-          range.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          doc.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        spaceTarget = null;
-        return;
-      }
-    }
-    spaceTarget = target;
+    if (range.startContainer.nodeType !== Node.TEXT_NODE || range.startOffset < 2) return;
+    const text = range.startContainer.textContent ?? "";
+    if (!/[ \u00a0\u3000]{2}$/.test(text.slice(0, range.startOffset))) return;
+    range.setStart(range.startContainer, range.startOffset - 2);
+    range.deleteContents();
+    const node = target.closest(".summary-node");
+    if (!node) return;
+    const doc = node.closest(".stream-doc") as HTMLElement;
+    doc.focus();
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    doc.dispatchEvent(new Event("input", { bubbles: true }));
   });
   root.addEventListener("focusin", (event) => {
     const node = (event.target as Element).closest(".summary-node");
