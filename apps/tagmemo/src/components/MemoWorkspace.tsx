@@ -25,8 +25,13 @@ const initialNotes = (first?.notes ?? []).map((note) => ({
   ...note,
   tagStates: note.tagStates ?? note.tagIds.map((id) => ({ id, state: "on", score: 1 })),
 }));
-const editorState = { current: null, timer: null, suppressScrollUntil: 0 };
+const editorState = { current: null, timer: null, suppressScrollUntil: 0, draftSerial: 0 };
 const inferenceThreshold = 100;
+const inferredText = new Map<string, string>();
+const inferredTags = new Map<string, string>();
+const scoresByNote = new Map<string, Record<string, number>>();
+const inferenceIds = new Map<string, number>();
+const pendingInference = new Map<string, { text: string; tags: string; reportError: boolean }>();
 
 export function MemoWorkspace() {
   const notes = signal(initialNotes);
@@ -48,12 +53,6 @@ export function MemoWorkspace() {
   );
   const inferredScores = signal({});
   const inferring = signal(false);
-  const inferredText = new Map<string, string>();
-  const inferredTags = new Map<string, string>();
-  const scoresByNote = new Map<string, Record<string, number>>();
-  const inferenceIds = new Map<string, number>();
-  const pendingInference = new Map<string, { text: string; tags: string; reportError: boolean }>();
-  let draftSerial = 0;
   const libraryOpen = signal(false);
   const libraryMode = signal("notes");
   const drawerOpen = signal(false);
@@ -64,6 +63,9 @@ export function MemoWorkspace() {
 
   const currentNote = derived(
     () => draftNew() ?? notes().find((note) => note.id === selectedId()) ?? null,
+  );
+  const currentKey = derived(() =>
+    currentNote() ? selectedId() || `draft:${editorState.draftSerial}` : null,
   );
   const streamNotes = derived(() =>
     draftNew()
@@ -165,10 +167,16 @@ export function MemoWorkspace() {
     if (first) checking(false);
     else
       currentUser()
-        .then(async (nextUser) => {
+        .then((nextUser) => {
           user(nextUser);
-          if (nextUser) applyData(await loadData());
-          checking(false);
+          if (nextUser)
+            loadData()
+              .then((data) => {
+                applyData(data);
+                checking(false);
+              })
+              .catch(fail);
+          else checking(false);
         })
         .catch(fail);
     document.addEventListener("keydown", (event) => {
@@ -187,10 +195,6 @@ export function MemoWorkspace() {
       }
     });
   });
-
-  function currentKey() {
-    return currentNote() ? selectedId() || `draft:${draftSerial}` : null;
-  }
 
   function fail(error) {
     status(error?.message ?? String(error));
@@ -270,30 +274,30 @@ export function MemoWorkspace() {
   function inferCurrentTags(note = currentNote(), useEditor = true) {
     if (!note || !tags().length) {
       if (note) {
-        const key = note.id || `draft:${draftSerial}`;
+        const key = note.id || `draft:${editorState.draftSerial}`;
         inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
         pendingInference.delete(key);
       }
       inferredScores({});
       inferring(false);
-      return;
+    } else {
+      const key = note.id || `draft:${editorState.draftSerial}`;
+      const value = useEditor && note.id === selectedId() ? editorState.current?.get() : null;
+      const title = value?.title ?? note.title;
+      const body = value?.text ?? note.body;
+      if (
+        inferredText.get(key) === `${title}\n${body}` &&
+        inferredTags.get(key) === JSON.stringify(tags()) &&
+        scoresByNote.has(key)
+      ) {
+        inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
+        pendingInference.delete(key);
+        inferredScores(scoresByNote.get(key));
+        inferring(false);
+      } else {
+        requestTagInference(key, title, body, true);
+      }
     }
-    const key = note.id || `draft:${draftSerial}`;
-    const value = useEditor && note.id === selectedId() ? editorState.current?.get() : null;
-    const title = value?.title ?? note.title;
-    const body = value?.text ?? note.body;
-    if (
-      inferredText.get(key) === `${title}\n${body}` &&
-      inferredTags.get(key) === JSON.stringify(tags()) &&
-      scoresByNote.has(key)
-    ) {
-      inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
-      pendingInference.delete(key);
-      inferredScores(scoresByNote.get(key));
-      inferring(false);
-      return;
-    }
-    requestTagInference(key, title, body, true);
   }
   function requestTagInference(key: string, title: string, body: string, reportError: boolean) {
     if (!tags().length) return;
@@ -390,7 +394,7 @@ export function MemoWorkspace() {
   }
   function newMemo() {
     if (dirty()) save();
-    draftSerial++;
+    editorState.draftSerial++;
     inferredScores({});
     inferring(false);
     const note = {
@@ -459,22 +463,21 @@ export function MemoWorkspace() {
       );
     markDirty();
   }
-  async function createTagForNote(name) {
-    if (busy() || !currentNote()) return false;
+  function createTagForNote(name) {
+    if (busy() || !currentNote()) return;
     const selected = selectedId();
     const draft = draftNew();
     busy(true);
-    try {
-      const id = await createTag(name);
-      applyData(await loadData());
-      busy(false);
-      if (drawerOpen()) inferCurrentTags();
-      if (selectedId() === selected && draftNew() === draft) setTagState({ id, score: 1 }, "on");
-      return true;
-    } catch (error) {
-      fail(error);
-      return false;
-    }
+    createTag(name)
+      .then((id) => loadData().then((data) => ({ id, data })))
+      .then(({ id, data }) => {
+        applyData(data);
+        busy(false);
+        if (drawerOpen()) inferCurrentTags();
+        if (selectedId() === selected && draftNew() === draft) setTagState({ id, score: 1 }, "on");
+        tagQuery("");
+      })
+      .catch(fail);
   }
   function save() {
     clearTimeout(editorState.timer);
@@ -490,7 +493,7 @@ export function MemoWorkspace() {
     } else {
       const draft = draftNew();
       const existing = draft ? null : notes().find((note) => note.id === selectedId());
-      const key = existing?.id || `draft:${draftSerial}`;
+      const key = existing?.id || `draft:${editorState.draftSerial}`;
       const baseline = inferredText.get(key) ?? `${currentNote().title}\n${currentNote().body}`;
       inferredText.set(key, baseline);
       const savedText = `${title}\n${value.text}`;
@@ -500,7 +503,7 @@ export function MemoWorkspace() {
       busy(true);
       status("");
       saveMemo(existing, title, writeMemoBody(value.text, value.html), ids, states)
-        .then(async (id) => {
+        .then((id) => {
           if (draft) {
             inferredText.set(id, inferredText.get(key) ?? baseline);
             const cached = scoresByNote.get(key);
@@ -518,13 +521,23 @@ export function MemoWorkspace() {
             draftNew(null);
             streamSeed(id);
           }
-          applyData(await loadData());
-          busy(false);
-          if (
-            changedCharacters(inferredText.get(id) ?? baseline, savedText, inferenceThreshold) >=
-            inferenceThreshold
-          )
-            requestTagInference(id, title, value.text, false);
+          loadData()
+            .then((data) => {
+              applyData(data);
+              busy(false);
+              if (
+                changedCharacters(
+                  inferredText.get(id) ?? baseline,
+                  savedText,
+                  inferenceThreshold,
+                ) >= inferenceThreshold
+              )
+                requestTagInference(id, title, value.text, false);
+            })
+            .catch((error) => {
+              dirty(true);
+              fail(error);
+            });
         })
         .catch((error) => {
           dirty(true);

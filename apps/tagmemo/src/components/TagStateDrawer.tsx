@@ -1,4 +1,4 @@
-import { render } from "irisout";
+import { derived, render } from "irisout";
 import { Icon } from "./Icon.tsx";
 
 function TagStateRow({ tag, onState }) {
@@ -66,13 +66,15 @@ export function TagStateDrawer({
   onState,
   onCreateTag,
 }) {
-  const tagName = () => query().trim().replace(/^#/, "");
-  const exactTag = () =>
-    candidates().find((tag) => tag.name.toLocaleLowerCase() === tagName().toLocaleLowerCase());
-  const visibleTags = () =>
+  const tagName = derived(() => query().trim().replace(/^#/, ""));
+  const exactTag = derived(() =>
+    candidates().find((tag) => tag.name.toLocaleLowerCase() === tagName().toLocaleLowerCase()),
+  );
+  const visibleTags = derived(() =>
     candidates().filter((tag) =>
       tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()),
-    );
+    ),
+  );
   render(
     <div
       class="stream-tag-backdrop"
@@ -105,9 +107,7 @@ export function TagStateDrawer({
                   onState(existing, "on");
                   query("");
                 } else {
-                  onCreateTag(name).then((created) => {
-                    if (created) query("");
-                  });
+                  onCreateTag(name);
                 }
               }}
             >

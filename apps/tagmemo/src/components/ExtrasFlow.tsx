@@ -50,10 +50,14 @@ export function ExtrasFlow({
     if (busy() || !activeExtra()) return;
     busy(true);
     updateExtra(selectedId(), activeExtra(), { ...extraValue() })
-      .then(async () => {
+      .then(() => {
         close();
-        onApplyData(await loadData());
-        busy(false);
+        loadData()
+          .then((data) => {
+            onApplyData(data);
+            busy(false);
+          })
+          .catch(onFail);
       })
       .catch(onFail);
   }
