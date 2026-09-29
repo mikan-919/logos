@@ -205,38 +205,100 @@ export function setupWysiwyg() {
     selection.addRange(range);
     doc.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  root.addEventListener("keydown", (event) => {
-    if (event.key !== "Backspace") return;
-    const doc = (event.target as Element).closest(".stream-doc");
+  function moveCaret(target: HTMLElement, end: boolean) {
+    target.focus();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    range.collapse(!end);
     const selection = window.getSelection();
-    if (!doc || document.activeElement !== doc || !selection?.isCollapsed || !selection.rangeCount)
-      return;
-    const range = selection.getRangeAt(0);
-    let cursor = range.startContainer;
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+  function moveOutside(node: Element, after: boolean) {
+    const editor = node.parentElement?.closest('[contenteditable="true"]') as HTMLElement;
+    editor.focus();
+    const range = document.createRange();
+    if (after) range.setStartAfter(node);
+    else range.setStartBefore(node);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+  function adjacentSummary(range: Range, root: Element, backward: boolean) {
+    let cursor: Node | null = range.startContainer;
     let offset = range.startOffset;
-    while (true) {
-      if (cursor.nodeType === Node.TEXT_NODE && offset > 0) return;
-      const previous =
-        cursor.nodeType === Node.TEXT_NODE ? cursor.previousSibling : cursor.childNodes[offset - 1];
-      if (previous) {
-        if (!(previous instanceof Element) || !previous.matches(".summary-node")) return;
-        const text = previous.querySelector(
-          ":scope > .summary-head > .summary-text",
-        ) as HTMLElement;
-        event.preventDefault();
-        text.focus();
-        range.selectNodeContents(text);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        return;
-      }
-      if (cursor === doc) return;
-      const parent = cursor.parentNode;
-      if (!parent) return;
-      offset = Array.prototype.indexOf.call(parent.childNodes, cursor);
+    while (cursor) {
+      if (
+        cursor.nodeType === Node.TEXT_NODE &&
+        (backward ? offset > 0 : offset < (cursor.textContent?.length ?? 0))
+      )
+        return null;
+      let sibling =
+        cursor.nodeType === Node.TEXT_NODE
+          ? backward
+            ? cursor.previousSibling
+            : cursor.nextSibling
+          : cursor.childNodes[offset - (backward ? 1 : 0)];
+      while (sibling?.nodeType === Node.TEXT_NODE && !sibling.textContent)
+        sibling = backward ? sibling.previousSibling : sibling.nextSibling;
+      if (sibling)
+        return sibling instanceof Element && sibling.matches(".summary-node") ? sibling : null;
+      if (cursor === root) return null;
+      const parent: Node | null = cursor.parentNode;
+      if (!parent) return null;
+      offset = Array.prototype.indexOf.call(parent.childNodes, cursor) + (backward ? 0 : 1);
       cursor = parent;
     }
+    return null;
+  }
+  root.addEventListener("keydown", (event) => {
+    const backward = event.key === "Backspace" || event.key === "ArrowLeft";
+    if (
+      (!backward && event.key !== "ArrowRight") ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    )
+      return;
+    const editor = (event.target as Element).closest('[contenteditable="true"]');
+    const selection = window.getSelection();
+    if (!editor || !selection?.isCollapsed || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    const field = editor.closest(".summary-text, .summary-detail-inner");
+    const node = field?.closest(".summary-node");
+    if (field && node) {
+      const edge = range.cloneRange();
+      edge.selectNodeContents(field);
+      if (backward) edge.setEnd(range.startContainer, range.startOffset);
+      else edge.setStart(range.startContainer, range.startOffset);
+      if (!edge.toString()) {
+        event.preventDefault();
+        if (field.matches(".summary-detail-inner") && backward)
+          moveCaret(
+            node.querySelector(":scope > .summary-head > .summary-text") as HTMLElement,
+            true,
+          );
+        else if (field.matches(".summary-text") && !backward && node.classList.contains("open"))
+          moveCaret(
+            node.querySelector(
+              ":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner",
+            ) as HTMLElement,
+            false,
+          );
+        else moveOutside(node, !backward);
+        return;
+      }
+    }
+    const summary = adjacentSummary(range, editor, backward);
+    if (!summary) return;
+    event.preventDefault();
+    const selector =
+      backward && summary.classList.contains("open")
+        ? ":scope > .summary-detail > .summary-detail-clip > .summary-detail-inner"
+        : ":scope > .summary-head > .summary-text";
+    moveCaret(summary.querySelector(selector) as HTMLElement, backward);
   });
   root.addEventListener("focusin", (event) => {
     const node = (event.target as Element).closest(".summary-node");
