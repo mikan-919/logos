@@ -101,7 +101,7 @@ function NoteSection({
 
 export function NoteStream({
   notes,
-  onScroll,
+  scrollSuppressed,
   activeId,
   onActivate,
   onTitleInput,
@@ -113,7 +113,7 @@ export function NoteStream({
   extrasCount,
 }) {
   render(
-    <main class="stream-scroll" id="scroll-root" onScroll={onScroll}>
+    <main class="stream-scroll" id="scroll-root" onScroll={followScroll}>
       <div class="stream-content">
         {notes().map((note) => (
           <NoteSection
@@ -144,4 +144,23 @@ export function NoteStream({
       ></div>
     </main>,
   );
+
+  function followScroll(event) {
+    if (scrollSuppressed()) return;
+    const root = event.currentTarget;
+    const box = root.getBoundingClientRect();
+    const target = box.top + box.height * 0.42;
+    const nearest = [...root.querySelectorAll(".stream-note")]
+      .filter((section) => {
+        const rect = section.getBoundingClientRect();
+        return rect.bottom >= box.top && rect.top <= box.bottom;
+      })
+      .map((section) => {
+        const rect = section.getBoundingClientRect();
+        return { section, gap: Math.max(rect.top - target, target - rect.bottom, 0) };
+      })
+      .sort((a, b) => a.gap - b.gap)[0]?.section;
+    const id = nearest?.getAttribute("data-note-id");
+    if (id && id !== "draft" && id !== activeId()) onActivate(id);
+  }
 }
