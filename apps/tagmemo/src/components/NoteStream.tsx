@@ -32,8 +32,8 @@ function NoteSection({
   note,
   activeId,
   onActivate,
-  onTitleInput,
-  onBodyInput,
+  activeTitle,
+  onDirty,
   onRemoveTag,
   onAddTag,
   onDelete,
@@ -56,7 +56,11 @@ function NoteSection({
           placeholder="無題"
           value={note.title}
           onFocus={() => onActivate(note.id)}
-          onInput={(event) => onTitleInput(note.id, event.currentTarget.value)}
+          onInput={(event) => {
+            if (note.id !== activeId()) return;
+            activeTitle(event.currentTarget.value);
+            onDirty();
+          }}
         />
         <div class="stream-note-tags">
           {note.tagLabels.map((tag) => (
@@ -85,7 +89,9 @@ function NoteSection({
         spellcheck="true"
         aria-label={`${note.title || "無題"}の本文`}
         onFocus={() => onActivate(note.id)}
-        onInput={() => onBodyInput(note.id)}
+        onInput={() => {
+          if (note.id === activeId()) onDirty();
+        }}
       ></article>
       <div class="stream-note-footer" data-hidden={activeId() !== note.id}>
         <button type="button" data-hidden={extrasCount() === 0} onClick={onExtras}>
@@ -104,8 +110,8 @@ export function NoteStream({
   scrollSuppressed,
   activeId,
   onActivate,
-  onTitleInput,
-  onBodyInput,
+  activeTitle,
+  onDirty,
   onRemoveTag,
   onAddTag,
   onDelete,
@@ -121,8 +127,8 @@ export function NoteStream({
             note={note}
             activeId={activeId}
             onActivate={onActivate}
-            onTitleInput={onTitleInput}
-            onBodyInput={onBodyInput}
+            activeTitle={activeTitle}
+            onDirty={onDirty}
             onRemoveTag={onRemoveTag}
             onAddTag={onAddTag}
             onDelete={onDelete}

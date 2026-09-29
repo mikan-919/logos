@@ -1,4 +1,5 @@
 import { derived, render } from "irisout";
+import { createTag, loadData } from "../data.ts";
 import { Icon } from "./Icon.tsx";
 
 function TagStateRow({ tag, onState }) {
@@ -62,9 +63,13 @@ export function TagStateDrawer({
   inferring,
   query,
   busy,
+  selectedId,
+  draftNew,
+  onApplyData,
+  onRefreshTags,
+  onFail,
   onClose,
   onState,
-  onCreateTag,
 }) {
   const tagName = derived(() => query().trim().replace(/^#/, ""));
   const exactTag = derived(() =>
@@ -107,7 +112,7 @@ export function TagStateDrawer({
                   onState(existing, "on");
                   query("");
                 } else {
-                  onCreateTag(name);
+                  createTagForNote(name);
                 }
               }}
             >
@@ -160,4 +165,21 @@ export function TagStateDrawer({
       </aside>
     </div>,
   );
+
+  function createTagForNote(name) {
+    if (busy() || !note()) return;
+    const selected = selectedId();
+    const draft = draftNew();
+    busy(true);
+    createTag(name)
+      .then((id) => loadData().then((data) => ({ id, data })))
+      .then(({ id, data }) => {
+        onApplyData(data);
+        busy(false);
+        if (open()) onRefreshTags();
+        if (selectedId() === selected && draftNew() === draft) onState({ id, score: 1 }, "on");
+        query("");
+      })
+      .catch(onFail);
+  }
 }

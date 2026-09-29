@@ -1,8 +1,8 @@
 import { derived, onMount, render, signal } from "irisout";
 import { currentUser, signOut } from "./auth-client.ts";
 import { initialData } from "./bootstrap.ts";
+import { emptyDraft, keepEditedNote } from "./memo-state.ts";
 import {
-  createTag,
   deleteMemo,
   editableExtras,
   inferTagScores,
@@ -108,8 +108,8 @@ export function App() {
           scrollSuppressed={() => performance.now() < editorState.suppressScrollUntil}
           activeId={selectedId}
           onActivate={activateNote}
-          onTitleInput={editTitle}
-          onBodyInput={editBody}
+          activeTitle={activeTitle}
+          onDirty={markDirty}
           onRemoveTag={(id) => setTagState({ id, score: 0 }, "off")}
           onAddTag={() => openTagDrawer(true)}
           onDelete={removeMemo}
@@ -137,9 +137,13 @@ export function App() {
           inferring={inferring}
           query={tagQuery}
           busy={busy}
+          selectedId={selectedId}
+          draftNew={draftNew}
+          onApplyData={applyData}
+          onRefreshTags={inferCurrentTags}
+          onFail={fail}
           onClose={() => drawerOpen(false)}
           onState={setTagState}
-          onCreateTag={createTagForNote}
         />
         <p class="stream-status" role="status" data-hidden={!status()}>
           {status()}
@@ -219,27 +223,7 @@ export function App() {
   }
   function applyData(data) {
     const edited = dirty() && selectedId() ? editorState.current?.get() : null;
-    const nextNotes = edited
-      ? data.notes.map((note) =>
-          note.id === selectedId()
-            ? {
-                ...note,
-                title: edited.title || "無題",
-                body: edited.text,
-                bodyHtml: edited.html,
-                tagStates: tagStates(),
-                tagIds: tagStates()
-                  .filter((tag) => tag.state !== "off")
-                  .map((tag) => tag.id),
-                tagLabels: tags()
-                  .filter((tag) =>
-                    tagStates().some((entry) => entry.id === tag.id && entry.state !== "off"),
-                  )
-                  .map((tag) => ({ id: tag.id, name: tag.name })),
-              }
-            : note,
-        )
-      : data.notes;
+    const nextNotes = keepEditedNote(data.notes, selectedId(), edited, tagStates(), tags());
     notes(nextNotes);
     tags(data.tags);
     types(data.types);
@@ -334,8 +318,8 @@ export function App() {
         if (inferenceIds.get(key) === id && currentKey() === key) inferring(false);
       });
   }
-  function activateNote(id) {
-    if (selectedId() === id && !draftNew()) return;
+  function activateNote(id, force = false) {
+    if (!force && selectedId() === id && !draftNew()) return;
     if (dirty()) save();
     const note = notes().find((item) => item.id === id);
     if (note) {
@@ -354,17 +338,8 @@ export function App() {
   function selectFromLibrary(id) {
     const note = notes().find((item) => item.id === id);
     if (!note) return;
-    if (dirty()) save();
     streamSeed(id);
-    draftNew(null);
-    selectedId(id);
-    activeTitle(note.title);
-    tagStates(note.tagStates ?? []);
-    if (drawerOpen()) inferCurrentTags(note, false);
-    else {
-      inferredScores({});
-      inferring(false);
-    }
+    activateNote(id, true);
     libraryOpen(false);
     editorState.suppressScrollUntil = performance.now() + 650;
     requestAnimationFrame(() => {
@@ -379,17 +354,7 @@ export function App() {
     editorState.draftSerial++;
     inferredScores({});
     inferring(false);
-    const note = {
-      id: "",
-      title: "",
-      body: "",
-      bodyHtml: "",
-      tagIds: [],
-      tagStates: [],
-      tagLabels: [],
-      components: [],
-      pending: true,
-    };
+    const note = emptyDraft();
     draftNew(note);
     selectedId("");
     activeTitle("");
@@ -408,15 +373,6 @@ export function App() {
         ) as HTMLInputElement
       )?.focus();
     });
-  }
-  function editTitle(id, value) {
-    if (id === selectedId()) {
-      activeTitle(value);
-      markDirty();
-    }
-  }
-  function editBody(id) {
-    if (id === selectedId()) markDirty();
   }
   function markDirty() {
     if (!currentNote()) return;
@@ -444,22 +400,6 @@ export function App() {
         ),
       );
     markDirty();
-  }
-  function createTagForNote(name) {
-    if (busy() || !currentNote()) return;
-    const selected = selectedId();
-    const draft = draftNew();
-    busy(true);
-    createTag(name)
-      .then((id) => loadData().then((data) => ({ id, data })))
-      .then(({ id, data }) => {
-        applyData(data);
-        busy(false);
-        if (drawerOpen()) inferCurrentTags();
-        if (selectedId() === selected && draftNew() === draft) setTagState({ id, score: 1 }, "on");
-        tagQuery("");
-      })
-      .catch(fail);
   }
   function save() {
     clearTimeout(editorState.timer);
