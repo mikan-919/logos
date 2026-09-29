@@ -17,6 +17,8 @@ vp dev
 
 Logos Worker の `/mcp` は HTTP の MCP 接続先。開発時は次のコマンドで Logos Worker を単体起動し、`http://localhost:8787/mcp` に接続する。
 
+Cloudflare の公開接続先は `https://logos.mikan-919.workers.dev/mcp`。TagMemo の画面は `https://logos-tagmemo.mikan-919.workers.dev/tagmemo/`。
+
 ```sh
 cd apps/logos
 NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt vp exec wrangler dev --config wrangler.jsonc --port 8787
@@ -24,7 +26,7 @@ NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt vp exec wrangler dev --co
 
 既存の Better Auth セッションを使うため、MCP クライアントには Logos にログインした際の `Cookie` ヘッダーを設定する。セッションがない要求は 401 を返す。
 
-Codex、fx、OMP の利用者設定には開発用接続先を登録できる。ログイン後、ブラウザの Cookie ヘッダー全体を `LOGOS_MCP_COOKIE` 環境変数に入れ、各クライアントを起動する。資格情報は設定ファイルやリポジトリに保存しない。
+Codex、fx、OMP の利用者設定には公開接続先を登録する。TagMemo にログイン後、ブラウザの Cookie ヘッダー全体を `LOGOS_MCP_COOKIE` 環境変数に入れ、各クライアントを再起動する。セッションが失効した場合は Cookie を更新する。資格情報は設定ファイルやリポジトリに保存しない。
 
 `list_entities`、`get_entity`、`create_entity`、`delete_entity`、`list_component_types`、`register_component_type`、`add_component`、`update_component`、`delete_component` を公開する。Component の変更と削除には、取得結果の `revision` を渡す。操作には Logos API と同じ権限判定が適用される。
 
