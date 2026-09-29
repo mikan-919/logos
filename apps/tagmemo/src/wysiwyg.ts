@@ -205,6 +205,39 @@ export function setupWysiwyg() {
     selection.addRange(range);
     doc.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Backspace") return;
+    const doc = (event.target as Element).closest(".stream-doc");
+    const selection = window.getSelection();
+    if (!doc || document.activeElement !== doc || !selection?.isCollapsed || !selection.rangeCount)
+      return;
+    const range = selection.getRangeAt(0);
+    let cursor = range.startContainer;
+    let offset = range.startOffset;
+    while (true) {
+      if (cursor.nodeType === Node.TEXT_NODE && offset > 0) return;
+      const previous =
+        cursor.nodeType === Node.TEXT_NODE ? cursor.previousSibling : cursor.childNodes[offset - 1];
+      if (previous) {
+        if (!(previous instanceof Element) || !previous.matches(".summary-node")) return;
+        const text = previous.querySelector(
+          ":scope > .summary-head > .summary-text",
+        ) as HTMLElement;
+        event.preventDefault();
+        text.focus();
+        range.selectNodeContents(text);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      if (cursor === doc) return;
+      const parent = cursor.parentNode;
+      if (!parent) return;
+      offset = Array.prototype.indexOf.call(parent.childNodes, cursor);
+      cursor = parent;
+    }
+  });
   root.addEventListener("focusin", (event) => {
     const node = (event.target as Element).closest(".summary-node");
     if (!node) return crumb.classList.remove("show");
