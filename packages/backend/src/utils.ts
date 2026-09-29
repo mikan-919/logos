@@ -171,5 +171,6 @@ export async function entityResponse(db: Kysely<Database>, id: string) {
 }
 
 export function serializeComponent<T extends { value: string; revision: number }>(component: T) {
-  return { ...component, value: parseJson(component.value), revision: String(component.revision) };
+  const { value, revision, ...rest } = component;
+  return { ...rest, value: parseJson(value), revision: String(revision) };
 }

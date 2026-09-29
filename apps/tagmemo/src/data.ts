@@ -1,3 +1,5 @@
+import { checked, logosApi } from "./api-client.ts";
+
 type Entity = {
   id: string;
   createdAt: string;
@@ -26,43 +28,25 @@ export async function inferTagScores(
   return result.scores ?? {};
 }
 
-async function api(
-  path: string,
-  method = "GET",
-  data?: unknown,
-  fetcher: typeof fetch = fetch,
-): Promise<any> {
-  if (data !== undefined && method !== "POST" && method !== "PUT") {
-    throw new Error("データを送る操作は POST または PUT にしてください");
-  }
-  const response =
-    data === undefined
-      ? await fetcher(`/api${path}`, { method })
-      : await fetcher(`/api${path}`, {
-          method: method === "POST" ? "POST" : "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error ?? `要求に失敗しました (${response.status})`);
-  }
-  return response.status === 204 ? null : response.json();
-}
-
 async function listIds(type: string, fetcher: typeof fetch): Promise<string[]> {
+  const client = logosApi(fetcher);
   const ids = [];
   let after = "";
   while (true) {
-    const page = await api(
-      `/entities?has=${type}&limit=100${after ? `&after=${after}` : ""}`,
-      "GET",
-      undefined,
-      fetcher,
-    );
+    const page = await (
+      await checked(
+        client.entities.$get({
+          query: {
+            has: type,
+            limit: "100",
+            after,
+          },
+        }),
+      )
+    ).json();
     ids.push(...page.ids);
     if (page.ids.length < 100) return ids;
-    after = page.ids.at(-1);
+    after = page.ids.at(-1)!;
   }
 }
 
@@ -86,14 +70,23 @@ export function writeMemoBody(text: string, html: string): string {
 }
 
 export async function loadData(fetcher = fetch) {
+  const client = logosApi(fetcher);
   const [memoIds, tagIds, typeResult] = await Promise.all([
     listIds("tagmemo.memo", fetcher),
     listIds("tagmemo.tag", fetcher),
-    api("/component-types", "GET", undefined, fetcher),
+    checked(client["component-types"].$get()).then((response) => response.json()),
   ]);
   const [memoEntities, tagEntities]: [Entity[], Entity[]] = await Promise.all([
-    Promise.all(memoIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
-    Promise.all(tagIds.map((id) => api(`/entities/${id}`, "GET", undefined, fetcher))),
+    Promise.all(
+      memoIds.map((id) =>
+        checked(client.entities[":id"].$get({ param: { id } })).then((response) => response.json()),
+      ),
+    ),
+    Promise.all(
+      tagIds.map((id) =>
+        checked(client.entities[":id"].$get({ param: { id } })).then((response) => response.json()),
+      ),
+    ),
   ]);
   const tags = tagEntities.map((entity) => ({
     id: entity.id,
@@ -129,14 +122,20 @@ export async function loadData(fetcher = fetch) {
 }
 
 async function createEntity(parts: [string, Record<string, unknown>][]): Promise<string> {
-  const entity = await api("/entities", "POST");
+  const client = logosApi();
+  const entity = await (await checked(client.entities.$post())).json();
   try {
     for (const [typeKey, value] of parts) {
-      await api(`/entities/${entity.id}/components`, "POST", { typeKey, value });
+      await checked(
+        client.entities[":id"].components.$post({
+          param: { id: entity.id },
+          json: { typeKey, value },
+        }),
+      );
     }
     return entity.id;
   } catch (error) {
-    await api(`/entities/${entity.id}`, "DELETE").catch(() => {});
+    await checked(client.entities[":id"].$delete({ param: { id: entity.id } })).catch(() => {});
     throw error;
   }
 }
@@ -149,13 +148,18 @@ export async function createTag(name: string): Promise<string> {
 }
 
 export async function renameTag(tagId: string, name: string): Promise<void> {
-  const entity: Entity = await api(`/entities/${tagId}`);
+  const client = logosApi();
+  const entity: Entity = await (
+    await checked(client.entities[":id"].$get({ param: { id: tagId } }))
+  ).json();
   const existing = component(entity, "logos.name");
   if (!existing) throw new Error("タグ名が見つかりません");
-  await api(`/entities/${tagId}/components/logos.name`, "PUT", {
-    value: { value: name.trim() },
-    revision: existing.revision,
-  });
+  await checked(
+    client.entities[":id"].components[":key"].$put({
+      param: { id: tagId, key: "logos.name" },
+      json: { value: { value: name.trim() }, revision: existing.revision },
+    }),
+  );
 }
 
 export async function mergeOrDeleteTag(
@@ -195,6 +199,7 @@ export async function saveMemo(
   tagIds: string[],
   tagStates: TagState[] = tagIds.map((id) => ({ id, state: "on", score: 1 })),
 ): Promise<string> {
+  const client = logosApi();
   const name = { value: title.trim() };
   const memo = { body };
   const tags = { entities: tagIds };
@@ -216,19 +221,26 @@ export async function saveMemo(
   for (const [typeKey, value] of parts) {
     const existing = component(note, typeKey);
     if (existing) {
-      await api(`/entities/${note.id}/components/${typeKey}`, "PUT", {
-        value,
-        revision: existing.revision,
-      });
+      await checked(
+        client.entities[":id"].components[":key"].$put({
+          param: { id: note.id, key: typeKey },
+          json: { value, revision: existing.revision },
+        }),
+      );
     } else {
-      await api(`/entities/${note.id}/components`, "POST", { typeKey, value });
+      await checked(
+        client.entities[":id"].components.$post({
+          param: { id: note.id },
+          json: { typeKey, value },
+        }),
+      );
     }
   }
   return note.id;
 }
 
 export async function deleteMemo(id: string): Promise<void> {
-  await api(`/entities/${id}`, "DELETE");
+  await checked(logosApi().entities[":id"].$delete({ param: { id } }));
 }
 
 export function editableExtras(note: Memo | null, types: ComponentType[]) {
@@ -254,8 +266,10 @@ export async function updateExtra(
   extra: Entity["components"][number],
   value: Record<string, unknown>,
 ): Promise<void> {
-  await api(`/entities/${noteId}/components/${extra.type_key}`, "PUT", {
-    revision: extra.revision,
-    value,
-  });
+  await checked(
+    logosApi().entities[":id"].components[":key"].$put({
+      param: { id: noteId, key: extra.type_key },
+      json: { revision: extra.revision, value },
+    }),
+  );
 }

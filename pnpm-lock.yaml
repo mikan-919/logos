@@ -223,6 +223,9 @@ importers:
       better-auth:
         specifier: 'catalog:'
         version: 1.7.6(pg@8.23.0)(vitest@5.0.1)
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.9
       irisout:
         specifier: ^0.3.4
         version: 0.3.4(hono@4.13.9)(vite-plus@1.0.0-rc.0(@types/node@24.13.6)(@vitest/ui@5.0.1)(esbuild@0.28.1)(jiti@2.7.0)(typescript@7.0.2))
@@ -275,9 +278,15 @@ importers:
 
   apps/tagmemo:
     dependencies:
+      '@logos/backend':
+        specifier: workspace:*
+        version: link:../../packages/backend
       better-auth:
         specifier: 'catalog:'
         version: 1.7.6(pg@8.23.0)(vitest@5.0.1)
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.9
       irisout:
         specifier: ^0.3.4
         version: 0.3.4(hono@4.13.9)(vite-plus@1.0.0-rc.0(@types/node@24.13.6)(@vitest/ui@5.0.1)(esbuild@0.28.1)(jiti@2.7.0)(typescript@7.0.2))
