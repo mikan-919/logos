@@ -173,6 +173,9 @@ catalogs:
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
+    '@modelcontextprotocol/server':
+      specifier: ^2.1.0
+      version: 2.1.0
     '@tailwindcss/vite':
       specifier: ^4.3.3
       version: 4.3.3
@@ -206,6 +209,9 @@ catalogs:
     wrangler:
       specifier: ^4.140.0
       version: 4.140.0
+    zod:
+      specifier: ^4.6.5
+      version: 4.6.5
 
 overrides:
   vite@*: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
@@ -235,6 +241,9 @@ importers:
       '@logos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@modelcontextprotocol/server':
+        specifier: 'catalog:'
+        version: 2.1.0
       better-auth:
         specifier: 'catalog:'
         version: 1.7.6(pg@8.23.0)(vitest@5.0.1)
@@ -247,6 +256,9 @@ importers:
       kysely-turso:
         specifier: 'catalog:'
         version: 0.1.1(@libsql/client@0.18.0)(kysely@0.29.6)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -924,6 +936,14 @@ packages:
         optional: true
       '@playwright/test':
         optional: true
+
+  '@modelcontextprotocol/core@2.1.0':
+    resolution: {integrity: sha512-YdFj5gMRHr0gYNAhTbQDgjLHiEJdIAUYxomhKseUNye7ZGlISQmUoLh2sveFFCiQ7j2YMffT1kgSND0FSfIFjQ==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/server@2.1.0':
+    resolution: {integrity: sha512-FdvwZU5N03O77Suh35JqjAqq5R1ZTEPFtwu6N4BgBq28qrQtrCnpbLL5U2pwYCuE194jAw0xnlOVmIqhfoYuUQ==}
+    engines: {node: '>=20'}
 
   '@neon-rs/load@0.0.4':
     resolution: {integrity: sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw==}
@@ -2910,6 +2930,15 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@modelcontextprotocol/core@2.1.0':
+    dependencies:
+      zod: 4.6.5
+
+  '@modelcontextprotocol/server@2.1.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.1.0
+      zod: 4.6.5
 
   '@neon-rs/load@0.0.4': {}
 

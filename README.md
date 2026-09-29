@@ -13,6 +13,12 @@ vp dev
 
 `vp dev` は TagMemo Worker と Logos Worker を起動する。ブラウザには TagMemo Worker の `http://localhost:5173/tagmemo/` が公開され、`/api/*` はサービス結合を通じて Logos Worker に転送される。Logos Worker だけがデータベースに接続する。
 
+## MCP
+
+Logos Worker の `/mcp` は HTTP の MCP 接続先。既存の Better Auth セッションを使うため、MCP クライアントには Logos にログインした際の `Cookie` ヘッダーを設定する。セッションがない要求は 401 を返す。公開先の例は `https://<Logos Worker のホスト>/mcp`。
+
+`list_entities`、`get_entity`、`create_entity`、`delete_entity`、`list_component_types`、`register_component_type`、`add_component`、`update_component`、`delete_component` を公開する。Component の変更と削除には、取得結果の `revision` を渡す。操作には Logos API と同じ権限判定が適用される。
+
 ## ビルドと配置
 
 ```sh

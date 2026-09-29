@@ -9,6 +9,7 @@ catalog:
   "@cfworker/json-schema": ^4.1.1
   "@cloudflare/vite-plugin": ^1.60.1
   "@libsql/client": ^0.18.0
+  "@modelcontextprotocol/server": ^2.1.0
   "@tailwindcss/vite": ^4.3.3
   "@types/node": ^24
   ajv: ^8.20.0
@@ -23,6 +24,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0
   vite-plus: 1.0.0-rc.0
   wrangler: ^4.140.0
+  zod: ^4.6.5
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:

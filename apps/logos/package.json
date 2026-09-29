@@ -13,10 +13,12 @@
     "@libsql/client": "catalog:",
     "@logos/backend": "workspace:*",
     "@logos/db": "workspace:*",
+    "@modelcontextprotocol/server": "catalog:",
     "better-auth": "catalog:",
     "hono": "catalog:",
     "kysely": "catalog:",
-    "kysely-turso": "catalog:"
+    "kysely-turso": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
