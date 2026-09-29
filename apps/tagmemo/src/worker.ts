@@ -86,15 +86,15 @@ async function inferTags(request: Request, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env) {
     const path = new URL(request.url).pathname;
-    if (path === "/tagmemo/infer-tags") return inferTags(request, env);
+    if (path === "/infer-tags") return inferTags(request, env);
     if (path.startsWith("/api/")) return env.LOGOS.fetch(request);
     if (
       request.method === "GET" &&
-      (path === "/" || path === "/index.html" || path === "/tagmemo")
+      (path === "/tagmemo" || path === "/tagmemo/" || path === "/tagmemo/index.html")
     ) {
-      return Response.redirect(new URL("/tagmemo/", request.url), 302);
+      return Response.redirect(new URL("/", request.url), 302);
     }
-    if (request.method !== "GET" || (path !== "/tagmemo/" && path !== "/tagmemo/index.html")) {
+    if (request.method !== "GET" || (path !== "/" && path !== "/index.html")) {
       return env.ASSETS.fetch(request);
     }
     const asset = await env.ASSETS.fetch(new Request(new URL("/tagmemo/index.html", request.url)));

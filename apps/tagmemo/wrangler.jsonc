@@ -8,12 +8,12 @@
     "binding": "ASSETS",
     "run_worker_first": [
       "/api/*",
+      "/infer-tags",
       "/",
       "/index.html",
       "/tagmemo",
       "/tagmemo/",
       "/tagmemo/index.html",
-      "/tagmemo/infer-tags",
     ],
   },
 }

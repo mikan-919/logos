@@ -12,7 +12,7 @@ export async function inferTagScores(
   body: string,
   tags: { id: string; name: string }[],
 ): Promise<Record<string, number>> {
-  const response = await fetch("/tagmemo/infer-tags", {
+  const response = await fetch("/infer-tags", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, body, tags }),

@@ -11,13 +11,13 @@ vp install
 vp dev
 ```
 
-`vp dev` は TagMemo Worker と Logos Worker を起動する。ブラウザには TagMemo Worker の `http://localhost:5173/tagmemo/` が公開され、`/api/*` はサービス結合を通じて Logos Worker に転送される。Logos Worker だけがデータベースに接続する。
+`vp dev` は TagMemo Worker と Logos Worker を起動する。ブラウザには TagMemo Worker の `http://localhost:5173/` が公開され、`/api/*` はサービス結合を通じて Logos Worker に転送される。Logos Worker だけがデータベースに接続する。
 
 ## MCP
 
 Logos Worker の `/mcp` は HTTP の MCP 接続先。開発時は次のコマンドで Logos Worker を単体起動し、`http://localhost:8787/mcp` に接続する。
 
-Cloudflare の公開接続先は `https://logos.mikan-919.workers.dev/mcp`。TagMemo の画面は `https://logos-tagmemo.mikan-919.workers.dev/tagmemo/`。
+Cloudflare の公開接続先は `https://logos.mikan-919.workers.dev/mcp`。TagMemo の画面は `https://logos-tagmemo.mikan-919.workers.dev/`。
 
 ```sh
 cd apps/logos
