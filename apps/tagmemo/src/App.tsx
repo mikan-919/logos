@@ -1,5 +1,5 @@
 import { derived, onMount, render, signal } from "irisout";
-import { currentUser, signIn, signOut, signUp } from "./auth-client.ts";
+import { currentUser, signOut } from "./auth-client.ts";
 import { initialData } from "./bootstrap.ts";
 import {
   createTag,
@@ -7,20 +7,17 @@ import {
   editableExtras,
   inferTagScores,
   loadData,
-  mergeOrDeleteTag,
-  renameTag,
   saveMemo,
-  updateExtra,
   writeMemoBody,
 } from "./data.ts";
 import { filterNotes } from "./filter-notes.ts";
 import { changedCharacters, relatedOrder, tagCandidates } from "./tag-model.ts";
 import { setupWysiwyg } from "./wysiwyg.ts";
-import { AuthScreen } from "./components/AuthScreen.tsx";
-import { ExtrasDialog } from "./components/ExtrasDialog.tsx";
+import { AuthFlow } from "./components/AuthFlow.tsx";
+import { ExtrasFlow } from "./components/ExtrasFlow.tsx";
+import { LibraryPanel } from "./components/LibraryPanel.tsx";
 import { NoteStream } from "./components/NoteStream.tsx";
 import { StreamDock } from "./components/StreamDock.tsx";
-import { StreamLibrary } from "./components/StreamLibrary.tsx";
 import { StreamTopbar } from "./components/StreamTopbar.tsx";
 import { TagStateDrawer } from "./components/TagStateDrawer.tsx";
 
@@ -102,7 +99,7 @@ export function App() {
 
   render(
     <div class="tagmemo-root">
-      <AuthScreen
+      <AuthFlow
         checking={checking}
         user={user}
         mode={authMode}
@@ -111,11 +108,7 @@ export function App() {
         displayName={displayName}
         status={status}
         busy={busy}
-        onSubmit={submitAuth}
-        onSwitch={switchAuth}
-        onEmail={email}
-        onPassword={password}
-        onDisplayName={displayName}
+        onFail={fail}
       />
       <div class="stream-app" data-hidden={!user()}>
         <StreamTopbar
@@ -145,34 +138,23 @@ export function App() {
           extrasCount={() => extras().length}
         />
         <StreamDock onLibrary={openLibrary} onTags={toggleDrawer} onNew={newMemo} />
-        <StreamLibrary
+        <LibraryPanel
           open={libraryOpen}
           mode={libraryMode}
           filter={libraryFilter}
           selectedTag={libraryTag}
           sort={librarySort}
           query={libraryQuery}
-          notes={libraryNotes}
-          allNotes={notes}
+          visibleNotes={libraryNotes}
+          notes={notes}
           tags={tags}
           activeId={selectedId}
+          busy={busy}
+          status={status}
           onClose={() => libraryOpen(false)}
-          onMode={libraryMode}
-          onFilter={(value) => {
-            libraryFilter(value);
-            libraryTag("");
-          }}
-          onTagFilter={(id) => {
-            libraryTag(id);
-            libraryFilter("tag");
-          }}
-          onSort={librarySort}
-          onQuery={libraryQuery}
           onSelect={selectFromLibrary}
-          onCreateTag={addTagFromLibrary}
-          onRenameTag={renameTagFromLibrary}
-          onMergeTag={mergeTagFromLibrary}
-          onDeleteTag={deleteTagFromLibrary}
+          onApplyData={applyData}
+          onFail={fail}
         />
         <TagStateDrawer
           open={drawerOpen}
@@ -189,19 +171,18 @@ export function App() {
           {status()}
         </p>
       </div>
-      <ExtrasDialog
+      <ExtrasFlow
         extras={extras}
         activeExtra={activeExtra}
         extraKey={extraKey}
         extraValue={extraValue}
         booleanFields={booleanFields}
         textFields={textFields}
+        selectedId={selectedId}
         status={status}
         busy={busy}
-        onClose={closeExtras}
-        onChoose={chooseExtra}
-        onField={setExtraField}
-        onSave={saveExtra}
+        onApplyData={applyData}
+        onFail={fail}
       />
     </div>,
   );
@@ -239,19 +220,6 @@ export function App() {
     status(error?.message ?? String(error));
     busy(false);
     checking(false);
-  }
-  function switchAuth() {
-    authMode(authMode() === "signin" ? "signup" : "signin");
-    status("");
-  }
-  function submitAuth(event) {
-    event.preventDefault();
-    busy(true);
-    const action =
-      authMode() === "signup"
-        ? signUp(displayName(), email(), password())
-        : signIn(email(), password());
-    action.then(() => window.location.reload()).catch(fail);
   }
   function logout() {
     clearTimeout(editorState.timer);
@@ -532,17 +500,6 @@ export function App() {
       return false;
     }
   }
-  function addTagFromLibrary() {
-    const name = prompt("新しいタグ名")?.trim().replace(/^#/, "");
-    if (!name || tags().some((tag) => tag.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
-      return;
-    busy(true);
-    createTag(name)
-      .then(() => loadData())
-      .then(applyData)
-      .catch(fail)
-      .finally(() => busy(false));
-  }
   function save() {
     clearTimeout(editorState.timer);
     if (!editorState.current || !currentNote() || !dirty()) return;
@@ -614,70 +571,11 @@ export function App() {
       .catch(fail)
       .finally(() => busy(false));
   }
-  function renameTagFromLibrary(tag) {
-    const name = prompt("タグを改名", tag.name)?.trim().replace(/^#/, "");
-    if (
-      !name ||
-      name === tag.name ||
-      tags().some((other) => other.id !== tag.id && other.name === name)
-    )
-      return;
-    busy(true);
-    renameTag(tag.id, name)
-      .then(() => loadData())
-      .then(applyData)
-      .catch(fail)
-      .finally(() => busy(false));
-  }
-  function mergeTagFromLibrary(tag) {
-    const name = prompt(`#${tag.name} の統合先タグ名`)?.trim().replace(/^#/, "");
-    const target = tags().find((item) => item.name === name && item.id !== tag.id);
-    if (!target) status("統合先の既存タグを指定してください");
-    else {
-      busy(true);
-      mergeOrDeleteTag(notes(), tag.id, target.id)
-        .then(() => loadData())
-        .then(applyData)
-        .catch(fail)
-        .finally(() => busy(false));
-    }
-  }
-  function deleteTagFromLibrary(tag) {
-    if (!confirm(`#${tag.name} を削除しますか？`)) return;
-    busy(true);
-    mergeOrDeleteTag(notes(), tag.id, null)
-      .then(() => loadData())
-      .then(applyData)
-      .catch(fail)
-      .finally(() => busy(false));
-  }
   function openExtras() {
     const firstExtra = extras()[0];
     if (!firstExtra) return;
     extraKey(firstExtra.type_key);
     extraValue({ ...firstExtra.value });
     (document.getElementById("components-dialog") as HTMLDialogElement)?.showModal();
-  }
-  function closeExtras() {
-    (document.getElementById("components-dialog") as HTMLDialogElement)?.close();
-  }
-  function chooseExtra(key) {
-    extraKey(key);
-    extraValue({ ...extras().find((item) => item.type_key === key)?.value });
-  }
-  function setExtraField(name, value) {
-    extraValue((current) => ({ ...current, [name]: value }));
-  }
-  function saveExtra(event) {
-    event.preventDefault();
-    if (busy() || !activeExtra()) return;
-    busy(true);
-    updateExtra(selectedId(), activeExtra(), { ...extraValue() })
-      .then(async () => {
-        closeExtras();
-        applyData(await loadData());
-        busy(false);
-      })
-      .catch(fail);
   }
 }
