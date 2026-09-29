@@ -1,15 +1,11 @@
-import { render } from "irisout";
+import { derived, render, signal } from "irisout";
 import { createTag, loadData, mergeOrDeleteTag, renameTag } from "../data.ts";
+import { filterNotes } from "../filter-notes.ts";
 import { StreamLibrary } from "./StreamLibrary.tsx";
 
 export function LibraryPanel({
   open,
   mode,
-  filter,
-  selectedTag,
-  sort,
-  query,
-  visibleNotes,
   notes,
   tags,
   activeId,
@@ -20,6 +16,14 @@ export function LibraryPanel({
   onApplyData,
   onFail,
 }) {
+  const filter = signal("all");
+  const selectedTag = signal("");
+  const sort = signal("updated");
+  const query = signal("");
+  const visibleNotes = derived(() =>
+    filterNotes(notes(), filter(), selectedTag(), query(), sort()),
+  );
+
   render(
     <StreamLibrary
       open={open}

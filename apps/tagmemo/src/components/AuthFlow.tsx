@@ -1,18 +1,13 @@
-import { render } from "irisout";
+import { render, signal } from "irisout";
 import { signIn, signUp } from "../auth-client.ts";
 import { AuthScreen } from "./AuthScreen.tsx";
 
-export function AuthFlow({
-  checking,
-  user,
-  mode,
-  email,
-  password,
-  displayName,
-  status,
-  busy,
-  onFail,
-}) {
+export function AuthFlow({ checking, user, status, busy, onFail }) {
+  const mode = signal("signin");
+  const email = signal("");
+  const password = signal("");
+  const displayName = signal("");
+
   render(
     <AuthScreen
       checking={checking}
