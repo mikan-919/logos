@@ -1,5 +1,5 @@
 import { checked, logosApi } from "./api-client.ts";
-import { isDisplayedTag } from "./tag-model.ts";
+import { isDisplayedTag, updateTagScores } from "./tag-model.ts";
 
 type Entity = {
   id: string;
@@ -8,25 +8,35 @@ type Entity = {
 };
 type Memo = { id: string; components: Entity["components"] };
 type ComponentType = { key: string; schema?: { properties?: Record<string, { type: string }> } };
-export type TagState = { id: string; state: "off" | "auto" | "on"; score: number };
+export type TagScore = { id: string; score: number };
 
 export async function inferTagScores(
   title: string,
   body: string,
   tags: { id: string; name: string }[],
 ): Promise<Record<string, number>> {
-  const response = await fetch("/infer-tags", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, body, tags }),
-  });
-  const result = (await response.json().catch(() => ({}))) as {
-    scores?: Record<string, number>;
-    error?: string;
-  };
-  if (!response.ok)
-    throw new Error(result.error ?? `タグの推定に失敗しました (${response.status})`);
-  return result.scores ?? {};
+  const scores: Record<string, number> = {};
+  for (let start = 0; start < tags.length; start += 100) {
+    const batch = tags.slice(start, start + 100);
+    const response = await fetch("/infer-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, body, tags: batch }),
+    });
+    const result = (await response.json().catch(() => ({}))) as {
+      scores?: Record<string, number>;
+      error?: string;
+    };
+    if (!response.ok)
+      throw new Error(result.error ?? `タグの推定に失敗しました (${response.status})`);
+    for (const tag of batch) {
+      const score = result.scores?.[tag.id];
+      if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 1)
+        throw new Error("タグの推定結果が不足しているか不正です");
+      scores[tag.id] = score;
+    }
+  }
+  return scores;
 }
 
 async function listIds(type: string, fetcher: typeof fetch): Promise<string[]> {
@@ -96,12 +106,19 @@ export async function loadData(fetcher = fetch) {
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
   const notes = memoEntities.map((entity) => {
     const legacyTagIds: string[] = component(entity, "tagmemo.tags")?.value.entities ?? [];
-    const savedStates: TagState[] | undefined = component(entity, "tagmemo.tag-states")?.value
-      .states;
-    const tagStates = (
-      savedStates ?? legacyTagIds.map((id) => ({ id, state: "on", score: 1 }))
-    ).filter((tag) => tagNames.has(tag.id));
-    const tagIds = tagStates.filter(isDisplayedTag).map((tag) => tag.id);
+    const savedStates: { id: string; state: "off" | "auto" | "on"; score: number }[] | undefined =
+      component(entity, "tagmemo.tag-states")?.value.states;
+    const savedScores: TagScore[] | undefined = component(entity, "tagmemo.tag-scores")?.value
+      .scores;
+    const tagScores = updateTagScores(
+      savedScores ??
+        savedStates?.map((tag) => ({
+          id: tag.id,
+          score: tag.state === "on" ? 1 : tag.state === "off" ? 0 : tag.score,
+        })) ??
+        legacyTagIds.map((id) => ({ id, score: 1 })),
+      tags,
+    );
     const body = readMemoBody(component(entity, "tagmemo.memo")?.value.body ?? "");
     return {
       id: entity.id,
@@ -113,9 +130,11 @@ export async function loadData(fetcher = fetch) {
       title: component(entity, "logos.name")?.value.value ?? "無題",
       body: body.text,
       bodyHtml: body.html,
-      tagIds,
-      tagStates,
-      tagLabels: tagIds.map((id) => ({ id, name: tagNames.get(id) ?? "不明なタグ" })),
+      tagScores,
+      inferredText: component(entity, "tagmemo.inference")?.value.text as string | undefined,
+      tagLabels: tagScores
+        .filter(isDisplayedTag)
+        .map((tag) => ({ id: tag.id, name: tagNames.get(tag.id)! })),
       components: entity.components,
     };
   });
@@ -169,26 +188,22 @@ export async function mergeOrDeleteTag(
     title: string;
     body: string;
     bodyHtml: string;
-    tagStates: TagState[];
+    tagScores: TagScore[];
     components: Entity["components"];
   }[],
   sourceId: string,
   targetId: string | null,
 ): Promise<void> {
+  const tags = (await listIds("tagmemo.tag", fetch)).filter((id) => id !== sourceId);
   for (const note of notes) {
-    const source = note.tagStates.find((tag) => tag.id === sourceId);
-    if (!source) continue;
-    const states = note.tagStates.filter((tag) => tag.id !== sourceId).map((tag) => ({ ...tag }));
-    if (targetId) {
-      const target = states.find((tag) => tag.id === targetId);
-      if (!target) states.push({ ...source, id: targetId });
-      else if (source.state === "on" && target.state !== "on") {
-        target.state = "on";
-        target.score = 1;
-      }
-    }
-    const ids = states.filter(isDisplayedTag).map((tag) => tag.id);
-    await saveMemo(note, note.title, writeMemoBody(note.body, note.bodyHtml), ids, states);
+    const source = note.tagScores.find((tag) => tag.id === sourceId);
+    const target = note.tagScores.find((tag) => tag.id === targetId);
+    const scores = updateTagScores(
+      note.tagScores,
+      tags.map((id) => ({ id })),
+      targetId ? { [targetId]: Math.max(source?.score ?? 0, target?.score ?? 0) } : {},
+    );
+    await writeMemo(note, note.title, writeMemoBody(note.body, note.bodyHtml), scores);
   }
   await deleteMemo(sourceId);
 }
@@ -197,28 +212,40 @@ export async function saveMemo(
   note: Memo | null,
   title: string,
   body: string,
-  tagIds: string[],
-  tagStates: TagState[] = tagIds.map((id) => ({ id, state: "on", score: 1 })),
+  tagScores: TagScore[],
+  inferredText?: string,
+): Promise<string> {
+  const tags = await listIds("tagmemo.tag", fetch);
+  return writeMemo(
+    note,
+    title,
+    body,
+    updateTagScores(
+      tagScores,
+      tags.map((id) => ({ id })),
+    ),
+    inferredText,
+  );
+}
+
+async function writeMemo(
+  note: Memo | null,
+  title: string,
+  body: string,
+  tagScores: TagScore[],
+  inferredText?: string,
 ): Promise<string> {
   const client = logosApi();
   const name = { value: title.trim() };
   const memo = { body };
-  const tags = { entities: tagIds };
-  const states = { entities: tagStates.map((tag) => tag.id), states: tagStates };
-  if (!note) {
-    return createEntity([
-      ["logos.name", name],
-      ["tagmemo.memo", memo],
-      ["tagmemo.tags", tags],
-      ["tagmemo.tag-states", states],
-    ]);
-  }
+  const scores = { entities: tagScores.map((tag) => tag.id), scores: tagScores };
   const parts: [string, Record<string, unknown>][] = [
     ["logos.name", name],
     ["tagmemo.memo", memo],
-    ["tagmemo.tags", tags],
-    ["tagmemo.tag-states", states],
+    ["tagmemo.tag-scores", scores],
   ];
+  if (inferredText !== undefined) parts.push(["tagmemo.inference", { text: inferredText }]);
+  if (!note) return createEntity(parts);
   for (const [typeKey, value] of parts) {
     const existing = component(note, typeKey);
     if (existing) {
@@ -236,6 +263,16 @@ export async function saveMemo(
         }),
       );
     }
+  }
+  for (const typeKey of ["tagmemo.tags", "tagmemo.tag-states"]) {
+    const existing = component(note, typeKey);
+    if (!existing) continue;
+    await checked(
+      client.entities[":id"].components[":key"].$delete({
+        param: { id: note.id, key: typeKey },
+        query: { revision: existing.revision },
+      }),
+    );
   }
   return note.id;
 }

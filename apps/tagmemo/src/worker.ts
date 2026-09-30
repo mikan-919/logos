@@ -10,10 +10,22 @@ interface Env {
 
 async function inferTags(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405 });
+  const headers = new Headers();
+  for (const name of ["Cookie", "Authorization"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
   const session = await env.LOGOS.fetch(
-    new Request(new URL("/api/auth/get-session", request.url), { headers: request.headers }),
+    new Request(new URL("/api/auth/get-session", request.url), { headers }),
   );
-  if (!session.ok) return new Response(null, { status: 502 });
+  if (!session.ok) {
+    const detail = await session.json().catch(() => null);
+    const message = typeof detail?.message === "string" ? `: ${detail.message}` : "";
+    return Response.json(
+      { error: `Logosの認証確認に失敗しました (${session.status})${message}` },
+      { status: 502 },
+    );
+  }
   if (!(await session.json())) return new Response(null, { status: 401 });
   if (!env.TYPESAFE_API_KEY)
     return Response.json({ error: "タグ推定用の API 鍵が設定されていません" }, { status: 503 });

@@ -1,54 +1,35 @@
 import { derived, render } from "irisout";
 import { createTag, loadData } from "../data.ts";
-import { isDisplayedTag } from "../tag-model.ts";
 import { Icon } from "./Icon.tsx";
 
-function TagStateRow({ tag, onState }) {
+function TagScoreRow({ tag, onScore }) {
   render(
-    <div key={tag.id} class="stream-tag-state-row" data-state={tag.state}>
+    <div key={tag.id} class="stream-tag-state-row">
       <div class="stream-tag-state-main">
         <div>
           <strong>#{tag.name}</strong>
-          <span>
-            {tag.state === "on"
-              ? "オン"
-              : tag.state === "off"
-                ? "オフ"
-                : `${Math.round(tag.score * 100)}%`}
-          </span>
+          <span>{`${Math.round(tag.score * 100)}%`}</span>
         </div>
-        <div
-          class="stream-tag-confidence"
-          style={`--p:${Math.round((tag.state === "on" ? 1 : tag.state === "off" ? 0 : tag.score) * 100)}`}
-        >
+        <div class="stream-tag-confidence" style={`--p:${tag.score * 100}`}>
           <span></span>
         </div>
       </div>
-      <div class="stream-tag-state-controls" role="group" aria-label={`${tag.name}の状態`}>
+      <div class="stream-tag-state-controls" role="group" aria-label={`${tag.name}の該当確率`}>
         <button
-          class={tag.state === "off" ? "active" : ""}
+          class={tag.score === 0 ? "active" : ""}
           type="button"
-          title="オフ"
+          title="該当確率を0%にする（オフ）"
           aria-label={`${tag.name}をオフ`}
-          onClick={() => onState(tag, "off")}
+          onClick={() => onScore(tag, 0)}
         >
           <Icon name="x" />
         </button>
         <button
-          class={tag.state === "auto" ? "active" : ""}
+          class={tag.score === 1 ? "active" : ""}
           type="button"
-          title="自動"
-          aria-label={`${tag.name}を自動`}
-          onClick={() => onState(tag, "auto")}
-        >
-          <Icon name="sparkles" />
-        </button>
-        <button
-          class={tag.state === "on" ? "active" : ""}
-          type="button"
-          title="オン"
+          title="該当確率を100%にする（オン）"
           aria-label={`${tag.name}をオン`}
-          onClick={() => onState(tag, "on")}
+          onClick={() => onScore(tag, 1)}
         >
           <Icon name="check" />
         </button>
@@ -57,7 +38,7 @@ function TagStateRow({ tag, onState }) {
   );
 }
 
-export function TagStateDrawer({
+export function TagScoreDrawer({
   open,
   note,
   candidates,
@@ -67,20 +48,17 @@ export function TagStateDrawer({
   selectedId,
   draftNew,
   onApplyData,
-  onRefreshTags,
   onFail,
   onClose,
-  onState,
+  onScore,
 }) {
   const tagName = derived(() => query().trim().replace(/^#/, ""));
   const exactTag = derived(() =>
     candidates().find((tag) => tag.name.toLocaleLowerCase() === tagName().toLocaleLowerCase()),
   );
   const visibleTags = derived(() =>
-    candidates().filter(
-      (tag) =>
-        tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()) &&
-        (tagName() || isDisplayedTag(tag)),
+    candidates().filter((tag) =>
+      tag.name.toLocaleLowerCase().includes(tagName().toLocaleLowerCase()),
     ),
   );
   render(
@@ -97,7 +75,7 @@ export function TagStateDrawer({
         aria-hidden={!open()}
       >
         <header>
-          <strong>現在のメモのタグ</strong>
+          <strong>すべてのタグ</strong>
           <button type="button" aria-label="閉じる" onClick={onClose}>
             <Icon name="x" />
           </button>
@@ -112,14 +90,14 @@ export function TagStateDrawer({
                 if (!name || busy()) return;
                 const existing = exactTag();
                 if (existing) {
-                  onState(existing, "on");
+                  onScore(existing, 1);
                   query("");
                 } else {
                   createTagForNote(name);
                 }
               }}
             >
-              <label for="tag-drawer-search">タグを検索・追加</label>
+              <label for="tag-drawer-search">タグを検索・確率を設定</label>
               <div>
                 <input
                   id="tag-drawer-search"
@@ -131,19 +109,19 @@ export function TagStateDrawer({
                   onInput={(event) => query(event.currentTarget.value)}
                 />
                 <button type="submit" disabled={!note() || !tagName() || busy()}>
-                  {exactTag() ? "付ける" : "作成"}
+                  {exactTag() ? "100%にする" : "作成"}
                 </button>
               </div>
             </form>
             <div class="stream-tag-state-head">
               <div>
                 <h2>タグ</h2>
-                <p>既存のタグを選び、オンにするとメモに付きます。</p>
+                <p>全タグの該当確率を表示します。50%以上をタグとして扱います。</p>
               </div>
-              <small>オフ　自動　オン</small>
+              <small>0%　100%</small>
             </div>
             {visibleTags().map((tag) => (
-              <TagStateRow key={tag.id} tag={tag} onState={onState} />
+              <TagScoreRow key={tag.id} tag={tag} onScore={onScore} />
             ))}
             <p class="stream-tag-empty" data-hidden={!inferring()}>
               タグを推定しています。
@@ -161,7 +139,7 @@ export function TagStateDrawer({
               class="stream-tag-empty"
               data-hidden={!note() || !tagName() || visibleTags().length !== 0}
             >
-              一致するタグはありません。作成するとこのメモに付きます。
+              一致するタグはありません。作成すると該当確率を100%に設定します。
             </p>
           </div>
         </div>
@@ -179,10 +157,9 @@ export function TagStateDrawer({
       .then(({ id, data }) => {
         onApplyData(data);
         busy(false);
-        if (open()) onRefreshTags();
-        if (selectedId() === selected && draftNew() === draft) onState({ id, score: 1 }, "on");
+        if (selectedId() === selected && draftNew() === draft) onScore({ id, name, score: 1 }, 1);
         query("");
       })
-      .catch(onFail);
+      .catch((error) => onFail(error));
   }
 }

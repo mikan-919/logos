@@ -1,4 +1,4 @@
-import type { TagState } from "./data.ts";
+import type { TagScore } from "./data.ts";
 
 type Tag = { id: string; name: string };
 type Note = {
@@ -6,39 +6,45 @@ type Note = {
   title: string;
   body: string;
   createdAt?: string;
-  tagStates: TagState[];
+  tagScores: TagScore[];
 };
 
-export function isDisplayedTag(tag: TagState) {
-  return tag.state === "on" || (tag.state === "auto" && tag.score >= 0.5);
+export function isDisplayedTag(tag: TagScore) {
+  return tag.score >= 0.5;
 }
 
-export function tagCandidates(note: Note, tags: Tag[], scores: Record<string, number> = {}) {
-  const values = new Map(note.tagStates.map((entry) => [entry.id, { ...entry }]));
-  for (const tag of tags) {
-    const inferred = scores[tag.id];
-    const existing = values.get(tag.id);
-    if (existing?.state === "auto" && inferred !== undefined) existing.score = inferred;
-    else if (!existing)
-      values.set(tag.id, {
-        id: tag.id,
-        state: inferred === undefined ? "off" : "auto",
-        score: inferred ?? 0,
-      });
-  }
-  const rank = { on: 0, auto: 1, off: 2 };
-  return [...values.values()]
-    .map((entry) => ({ ...entry, name: tags.find((tag) => tag.id === entry.id)?.name ?? "" }))
-    .filter((entry) => entry.name)
-    .sort(
-      (a, b) =>
-        rank[a.state] - rank[b.state] || b.score - a.score || a.name.localeCompare(b.name, "ja"),
-    );
+export function updateTagScores(
+  current: TagScore[],
+  tags: { id: string; name?: string }[],
+  scores: Record<string, number> = {},
+): TagScore[] {
+  const byId = new Map(current.map((tag) => [tag.id, tag]));
+  let changed = current.length !== tags.length;
+  const next = tags.map((tag) => {
+    const existing = byId.get(tag.id);
+    const score = scores[tag.id] ?? existing?.score ?? 0;
+    if (existing && existing.score === score) return existing;
+    changed = true;
+    return { id: tag.id, score };
+  });
+  return changed ? next : current;
 }
 
-export function changedCharacters(before: string, after: string, limit: number): number {
+export function tagCandidates(note: Pick<Note, "tagScores">, tags: Tag[]) {
+  const scores = new Map(note.tagScores.map((entry) => [entry.id, entry.score]));
+  return tags
+    .map((tag) => ({ ...tag, score: scores.get(tag.id) ?? 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ja") || a.id.localeCompare(b.id));
+}
+
+export function shouldInferTags(before: string | undefined, after: string): boolean {
+  if (!after.trim()) return false;
+  if (before === undefined) return true;
+  if (before === after) return false;
   const a = Array.from(before);
   const b = Array.from(after);
+  const limit = Math.ceil(Math.max(a.length, b.length) / 2);
+  if (limit === 0) return false;
   let start = 0;
   while (start < a.length && start < b.length && a[start] === b[start]) start++;
   let end = 0;
@@ -50,25 +56,29 @@ export function changedCharacters(before: string, after: string, limit: number):
     end++;
   const n = a.length - start - end;
   const m = b.length - start - end;
-  if (Math.abs(n - m) >= limit) return limit;
-  let previous = new Map<number, number>();
-  for (let j = 0; j <= Math.min(m, limit - 1); j++) previous.set(j, j);
+  if (Math.abs(n - m) >= limit) return true;
+  // ponytail: exact bounded Levenshtein is quadratic for large rewrites; move to a worker if needed.
+  let previous = new Uint32Array(m + 1).fill(limit);
+  let row = new Uint32Array(m + 1).fill(limit);
+  for (let j = 0; j <= Math.min(m, limit - 1); j++) previous[j] = j;
   for (let i = 1; i <= n; i++) {
-    const row = new Map<number, number>();
-    if (i < limit) row.set(0, i);
-    for (let j = Math.max(1, i - limit + 1); j <= Math.min(m, i + limit - 1); j++) {
-      row.set(
-        j,
-        Math.min(
-          (previous.get(j) ?? limit) + 1,
-          (row.get(j - 1) ?? limit) + 1,
-          (previous.get(j - 1) ?? limit) + (a[start + i - 1] === b[start + j - 1] ? 0 : 1),
-        ),
+    row[0] = Math.min(i, limit);
+    const left = Math.max(1, i - limit + 1);
+    const right = Math.min(m, i + limit - 1);
+    if (left > 1) row[left - 1] = limit;
+    if (right < m) row[right + 1] = limit;
+    for (let j = left; j <= right; j++) {
+      row[j] = Math.min(
+        previous[j] + 1,
+        row[j - 1] + 1,
+        previous[j - 1] + (a[start + i - 1] === b[start + j - 1] ? 0 : 1),
       );
     }
+    const swap = previous;
     previous = row;
+    row = swap;
   }
-  return previous.get(m) ?? limit;
+  return previous[m] >= limit;
 }
 
 function words(text: string) {
@@ -96,12 +106,9 @@ export function relatedOrder<T extends Note>(notes: T[], centerId: string): T[] 
 
 function relevance(a: Note, b: Note) {
   let score = 0;
-  for (const tag of a.tagStates) {
-    if (tag.state === "off") continue;
-    const other = b.tagStates.find((item) => item.id === tag.id && item.state !== "off");
-    if (other)
-      score +=
-        4 * Math.min(tag.state === "on" ? 1 : tag.score, other.state === "on" ? 1 : other.score);
+  for (const tag of a.tagScores) {
+    const other = b.tagScores.find((item) => item.id === tag.id);
+    if (other) score += 4 * Math.min(tag.score, other.score);
   }
   const aWords = words(`${a.title} ${a.body}`);
   const bWords = words(`${b.title} ${b.body}`);

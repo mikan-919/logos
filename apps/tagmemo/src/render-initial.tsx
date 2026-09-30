@@ -18,14 +18,7 @@ function escapeHtml(value: string): string {
 export function renderInitialHtml(html: string, data: InitialData): string {
   const payload = JSON.stringify(data).replace(/</g, "\\u003c");
   const first = data.notes[0];
-  const notes = relatedOrder(
-    data.notes.map((note) => ({
-      ...note,
-      tagStates:
-        note.tagStates ?? note.tagIds.map((id) => ({ id, state: "on" as const, score: 1 })),
-    })),
-    first?.id ?? "",
-  )
+  const notes = relatedOrder(data.notes, first?.id ?? "")
     .map(
       (
         note,
@@ -42,9 +35,9 @@ export function renderInitialHtml(html: string, data: InitialData): string {
     .join("");
   const view = `<script id="tagmemo-initial-data" type="application/json">${payload}</script>
     <div id="ssr-view" class="stream-app"><header class="stream-topbar">
-      <div class="stream-top-left"><strong class="stream-brand">TAGMEMO</strong><button disabled>ライブラリ</button></div>
+      <div class="stream-top-left"><strong class="stream-brand">TAGMEMO</strong></div>
       <span class="stream-current-title">${escapeHtml(first?.title ?? "")}</span>
-      <div class="stream-top-right"><button class="stream-action" disabled>要約</button><button class="stream-action" disabled>タグ</button><button class="stream-save" disabled>保存済み</button><div class="stream-account"><button class="stream-account-button" disabled>${userIcon}</button></div></div>
+      <div class="stream-top-right"><span class="stream-saved">保存済み</span><div class="stream-account"><button class="stream-account-button" disabled>${userIcon}</button></div></div>
     </header><main class="stream-scroll"><div class="stream-content">${notes || '<div class="stream-empty"><h1>メモはありません</h1><p>下の新しいメモボタンから作成してください。</p></div>'}</div></main>
     <nav class="stream-dock"><button disabled>ライブラリ</button><button disabled>タグ</button><button class="stream-dock-new" disabled>${plusIcon}</button></nav></div>`;
   if (!html.includes("<body>")) throw new Error("HTML に body がありません");

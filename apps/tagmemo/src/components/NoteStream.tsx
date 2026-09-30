@@ -4,22 +4,13 @@ import { Icon } from "./Icon.tsx";
 
 function NoteTag({ tag, note, activeId, onRemoveTag }) {
   render(
-    <span
-      key={tag.id}
-      class={
-        note.tagStates?.find((entry) => entry.id === tag.id)?.state === "on"
-          ? "stream-tag manual"
-          : "stream-tag"
-      }
-    >
+    <span key={tag.id} class="stream-tag">
       <span>#{tag.name}</span>
-      <span data-hidden={note.tagStates?.find((entry) => entry.id === tag.id)?.state !== "on"}>
-        <Icon name="check" />
-      </span>
       <button
         type="button"
         data-hidden={activeId() !== note.id}
-        aria-label={`${tag.name}を外す`}
+        aria-label={`${tag.name}をオフ`}
+        title="確率を0%にする"
         onClick={() => onRemoveTag(tag.id)}
       >
         <Icon name="x" />

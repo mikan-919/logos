@@ -403,5 +403,5 @@ export function setupWysiwyg() {
       html: fragment.innerHTML,
     };
   }
-  return { set, sync, get, openSummary };
+  return { set, sync, get };
 }

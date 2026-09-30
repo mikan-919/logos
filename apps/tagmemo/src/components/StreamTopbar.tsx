@@ -7,9 +7,6 @@ export function StreamTopbar({
   busy,
   user,
   accountOpen,
-  onLibrary,
-  onSummary,
-  onTags,
   onSave,
   onAccount,
   onLogout,
@@ -18,21 +15,16 @@ export function StreamTopbar({
     <header class="stream-topbar">
       <div class="stream-top-left">
         <strong class="stream-brand">TAGMEMO</strong>
-        <button type="button" onClick={onLibrary}>
-          ライブラリ
-        </button>
       </div>
       <span class="stream-current-title">{title()}</span>
       <div class="stream-top-right">
-        <button class="stream-action" type="button" onClick={onSummary}>
-          要約
-        </button>
-        <button class="stream-action" type="button" onClick={onTags}>
-          タグ
-        </button>
-        <button class="stream-save" type="button" disabled={busy()} onClick={onSave}>
-          {dirty() ? "保存" : "保存済み"}
-        </button>
+        {dirty() ? (
+          <button class="stream-save" type="button" disabled={busy()} onClick={onSave}>
+            保存
+          </button>
+        ) : (
+          <span class="stream-saved">保存済み</span>
+        )}
         <div class="stream-account">
           <button
             class="stream-account-button"

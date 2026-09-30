@@ -88,7 +88,12 @@ export function StreamLibrary({
               onClick={() => onFilter("untagged")}
             >
               <span>タグなし</span>
-              <small>{allNotes().filter((note) => note.tagIds.length === 0).length}</small>
+              <small>
+                {
+                  allNotes().filter((note) => !note.tagScores.some((tag) => tag.score >= 0.5))
+                    .length
+                }
+              </small>
             </button>
             <p>タグ</p>
             {tags().map((tag) => (
@@ -99,7 +104,13 @@ export function StreamLibrary({
                 onClick={() => onTagFilter(tag.id)}
               >
                 <span>#{tag.name}</span>
-                <small>{allNotes().filter((note) => note.tagIds.includes(tag.id)).length}</small>
+                <small>
+                  {
+                    allNotes().filter((note) =>
+                      note.tagScores.some((entry) => entry.id === tag.id && entry.score >= 0.5),
+                    ).length
+                  }
+                </small>
               </button>
             ))}
           </aside>
@@ -186,18 +197,19 @@ export function StreamLibrary({
               <span>タグ</span>
             </div>
             <div>
-              <strong>{allNotes().reduce((sum, note) => sum + note.tagIds.length, 0)}</strong>
-              <span>付与数</span>
-            </div>
-            <div>
               <strong>
                 {allNotes().reduce(
-                  (sum, note) =>
-                    sum + (note.tagStates?.filter((tag) => tag.state === "on").length ?? 0),
+                  (sum, note) => sum + note.tagScores.filter((tag) => tag.score >= 0.5).length,
                   0,
                 )}
               </strong>
-              <span>手動</span>
+              <span>50%以上</span>
+            </div>
+            <div>
+              <strong>
+                {allNotes().filter((note) => note.tagScores.some((tag) => tag.score >= 0.5)).length}
+              </strong>
+              <span>タグのあるメモ</span>
             </div>
           </div>
           <div class="stream-tag-table">
@@ -205,31 +217,21 @@ export function StreamLibrary({
               <div key={tag.id} class="stream-tag-table-row">
                 <div>
                   <strong>#{tag.name}</strong>
-                  <small>
-                    {
-                      allNotes().filter((note) =>
-                        note.tagStates?.some(
-                          (entry) => entry.id === tag.id && entry.state === "on",
-                        ),
-                      ).length
-                    }{" "}
-                    手動 ·{" "}
-                    {
-                      allNotes().filter((note) =>
-                        note.tagStates?.some(
-                          (entry) => entry.id === tag.id && entry.state === "auto",
-                        ),
-                      ).length
-                    }{" "}
-                    自動
-                  </small>
+                  <small>該当確率50%以上</small>
                 </div>
                 <div class="stream-tag-usage">
                   <span
-                    style={`width:${allNotes().length ? (allNotes().filter((note) => note.tagIds.includes(tag.id)).length / allNotes().length) * 100 : 0}%`}
+                    style={`width:${allNotes().length ? (allNotes().filter((note) => note.tagScores.some((entry) => entry.id === tag.id && entry.score >= 0.5)).length / allNotes().length) * 100 : 0}%`}
                   ></span>
                 </div>
-                <span>{allNotes().filter((note) => note.tagIds.includes(tag.id)).length} 件</span>
+                <span>
+                  {
+                    allNotes().filter((note) =>
+                      note.tagScores.some((entry) => entry.id === tag.id && entry.score >= 0.5),
+                    ).length
+                  }{" "}
+                  件
+                </span>
                 <div class="stream-tag-actions">
                   <button
                     type="button"

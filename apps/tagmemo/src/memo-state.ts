@@ -1,10 +1,10 @@
-import { isDisplayedTag } from "./tag-model.ts";
+import { isDisplayedTag, tagCandidates, updateTagScores } from "./tag-model.ts";
 
-export function keepEditedNote(notes, selectedId, edited, states, tags) {
+export function keepEditedNote(notes, selectedId, edited, scores, tags) {
   if (!edited || !selectedId) return notes;
-  const tagIds = states.filter(isDisplayedTag).map((tag) => tag.id);
-  const tagLabels = tags
-    .filter((tag) => tagIds.includes(tag.id))
+  const tagScores = updateTagScores(scores, tags);
+  const tagLabels = tagCandidates({ tagScores }, tags)
+    .filter(isDisplayedTag)
     .map((tag) => ({ id: tag.id, name: tag.name }));
   return notes.map((note) =>
     note.id === selectedId
@@ -13,22 +13,20 @@ export function keepEditedNote(notes, selectedId, edited, states, tags) {
           title: edited.title || "無題",
           body: edited.text,
           bodyHtml: edited.html,
-          tagStates: states,
-          tagIds,
+          tagScores,
           tagLabels,
         }
       : note,
   );
 }
 
-export function emptyDraft() {
+export function emptyDraft(tags) {
   return {
     id: "",
     title: "",
     body: "",
     bodyHtml: "",
-    tagIds: [],
-    tagStates: [],
+    tagScores: updateTagScores([], tags),
     tagLabels: [],
     components: [],
     pending: true,

@@ -10,7 +10,13 @@ import {
   saveMemo,
   writeMemoBody,
 } from "./data.ts";
-import { changedCharacters, isDisplayedTag, relatedOrder, tagCandidates } from "./tag-model.ts";
+import {
+  shouldInferTags,
+  updateTagScores,
+  isDisplayedTag,
+  relatedOrder,
+  tagCandidates,
+} from "./tag-model.ts";
 import { setupWysiwyg } from "./wysiwyg.ts";
 import { AuthFlow } from "./components/AuthFlow.tsx";
 import { ExtrasFlow } from "./components/ExtrasFlow.tsx";
@@ -18,20 +24,17 @@ import { LibraryPanel } from "./components/LibraryPanel.tsx";
 import { NoteStream } from "./components/NoteStream.tsx";
 import { StreamDock } from "./components/StreamDock.tsx";
 import { StreamTopbar } from "./components/StreamTopbar.tsx";
-import { TagStateDrawer } from "./components/TagStateDrawer.tsx";
+import { TagScoreDrawer } from "./components/TagScoreDrawer.tsx";
 
 const first = initialData();
-const initialNotes = (first?.notes ?? []).map((note) => ({
-  ...note,
-  tagStates: note.tagStates ?? note.tagIds.map((id) => ({ id, state: "on", score: 1 })),
-}));
+const initialNotes = first?.notes ?? [];
 const editorState = { current: null, timer: null, suppressScrollUntil: 0, draftSerial: 0 };
-const inferenceThreshold = 100;
 const inferredText = new Map<string, string>();
-const inferredTags = new Map<string, string>();
-const scoresByNote = new Map<string, Record<string, number>>();
 const inferenceIds = new Map<string, number>();
-const pendingInference = new Map<string, { text: string; tags: string; reportError: boolean }>();
+const pendingInference = new Map<
+  string,
+  { text: string; tags: string; overrides: Record<string, number> }
+>();
 
 export function App() {
   const notes = signal(initialNotes);
@@ -46,12 +49,7 @@ export function App() {
   const activeTitle = signal(first?.notes[0]?.title ?? "");
   const streamSeed = signal(first?.notes[0]?.id ?? "");
   const draftNew = signal(null);
-  const tagStates = signal(
-    first?.notes[0]?.tagStates ??
-      first?.notes[0]?.tagIds?.map((id) => ({ id, state: "on", score: 1 })) ??
-      [],
-  );
-  const inferredScores = signal({});
+  const tagScores = signal(first?.notes[0]?.tagScores ?? []);
   const inferring = signal(false);
   const libraryOpen = signal(false);
   const libraryMode = signal("notes");
@@ -72,11 +70,7 @@ export function App() {
       ? [draftNew(), ...relatedOrder(notes(), streamSeed())]
       : relatedOrder(notes(), streamSeed()),
   );
-  const candidates = derived(() =>
-    currentNote()
-      ? tagCandidates({ ...currentNote(), tagStates: tagStates() }, tags(), inferredScores())
-      : [],
-  );
+  const candidates = derived(() => tagCandidates({ tagScores: tagScores() }, tags()));
   const extras = derived(() => editableExtras(currentNote(), types()));
   const activeExtra = derived(() => extras().find((item) => item.type_key === extraKey()));
   const booleanFields = derived(
@@ -96,9 +90,6 @@ export function App() {
           busy={busy}
           user={user}
           accountOpen={accountOpen}
-          onLibrary={openLibrary}
-          onSummary={() => editorState.current?.openSummary()}
-          onTags={toggleDrawer}
           onSave={save}
           onAccount={() => accountOpen(!accountOpen())}
           onLogout={logout}
@@ -110,7 +101,7 @@ export function App() {
           onActivate={activateNote}
           activeTitle={activeTitle}
           onDirty={markDirty}
-          onRemoveTag={(id) => setTagState({ id, score: 0 }, "off")}
+          onRemoveTag={(id) => setTagScore({ id }, 0)}
           onAddTag={() => openTagDrawer(true)}
           onDelete={removeMemo}
           onExtras={openExtras}
@@ -130,7 +121,7 @@ export function App() {
           onApplyData={applyData}
           onFail={fail}
         />
-        <TagStateDrawer
+        <TagScoreDrawer
           open={drawerOpen}
           note={currentNote}
           candidates={candidates}
@@ -140,10 +131,9 @@ export function App() {
           selectedId={selectedId}
           draftNew={draftNew}
           onApplyData={applyData}
-          onRefreshTags={inferCurrentTags}
           onFail={fail}
           onClose={() => drawerOpen(false)}
-          onState={setTagState}
+          onScore={setTagScore}
         />
         <p class="stream-status" role="status" data-hidden={!status()}>
           {status()}
@@ -168,6 +158,16 @@ export function App() {
   onMount(() => {
     editorState.current = setupWysiwyg();
     editorState.current.sync(streamNotes());
+    // Irisout 0.3.4 updates signals in lifecycle listeners, not nested helper Promise callbacks.
+    document.addEventListener("tagmemo:inference", (event) => {
+      const result = (event as CustomEvent).detail;
+      if (inferenceIds.get(result.key) !== result.id || currentKey() !== result.key) return;
+      if (result.scores) {
+        inferredText.set(result.key, result.text);
+        applyInferredScores(result.scores);
+      }
+      inferring(false);
+    });
     if (first) checking(false);
     else
       currentUser()
@@ -213,8 +213,6 @@ export function App() {
         notes([]);
         tags([]);
         inferredText.clear();
-        inferredTags.clear();
-        scoresByNote.clear();
         inferenceIds.clear();
         pendingInference.clear();
         status("");
@@ -223,18 +221,26 @@ export function App() {
   }
   function applyData(data) {
     const edited = dirty() && selectedId() ? editorState.current?.get() : null;
-    const nextNotes = keepEditedNote(data.notes, selectedId(), edited, tagStates(), tags());
+    const nextNotes = keepEditedNote(data.notes, selectedId(), edited, tagScores(), data.tags);
     notes(nextNotes);
     tags(data.tags);
     types(data.types);
     if (!draftNew()) {
       const selected = nextNotes.find((note) => note.id === selectedId()) ?? nextNotes[0];
       selectedId(selected?.id ?? "");
-      if (!edited) {
-        activeTitle(selected?.title ?? "");
-        tagStates(selected?.tagStates ?? []);
-      }
+      if (!edited) activeTitle(selected?.title ?? "");
+      tagScores(selected?.tagScores ?? []);
       if (!streamSeed()) streamSeed(selected?.id ?? "");
+    } else {
+      const scores = updateTagScores(tagScores(), data.tags);
+      tagScores(scores);
+      draftNew({
+        ...draftNew(),
+        tagScores: scores,
+        tagLabels: tagCandidates({ tagScores: scores }, data.tags)
+          .filter(isDisplayedTag)
+          .map((tag) => ({ id: tag.id, name: tag.name })),
+      });
     }
     requestAnimationFrame(() => editorState.current?.sync(streamNotes()));
   }
@@ -251,72 +257,42 @@ export function App() {
     tagQuery("");
     drawerOpen(true);
     accountOpen(false);
-    inferCurrentTags();
     if (focusSearch)
       requestAnimationFrame(() => document.getElementById("tag-drawer-search")?.focus());
   }
-  function inferCurrentTags(note = null, useEditor = true) {
-    note ??= currentNote();
-    if (!note || !tags().length) {
-      if (note) {
-        const key = note.id || `draft:${editorState.draftSerial}`;
-        inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
-        pendingInference.delete(key);
-      }
-      inferredScores({});
-      inferring(false);
-    } else {
-      const key = note.id || `draft:${editorState.draftSerial}`;
-      const value = useEditor && note.id === selectedId() ? editorState.current?.get() : null;
-      const title = value?.title ?? note.title;
-      const body = value?.text ?? note.body;
-      if (
-        inferredText.get(key) === `${title}\n${body}` &&
-        inferredTags.get(key) === JSON.stringify(tags()) &&
-        scoresByNote.has(key)
-      ) {
-        inferenceIds.set(key, (inferenceIds.get(key) ?? 0) + 1);
-        pendingInference.delete(key);
-        inferredScores(scoresByNote.get(key));
-        inferring(false);
-      } else {
-        requestTagInference(key, title, body, true);
-      }
-    }
-  }
-  function requestTagInference(key: string, title: string, body: string, reportError: boolean) {
+  function requestTagInference(key: string, title: string, body: string) {
     if (!tags().length) return;
-    const tagList = [...tags()];
+    const tagList = tags();
     const tagSignature = JSON.stringify(tagList);
     const text = `${title}\n${body}`;
     const pending = pendingInference.get(key);
-    if (pending?.text === text && pending.tags === tagSignature) {
-      pending.reportError ||= reportError;
-      return;
-    }
-    const request = { text, tags: tagSignature, reportError };
+    if (pending?.text === text && pending.tags === tagSignature) return;
+    const request = { text, tags: tagSignature, overrides: {} };
     pendingInference.set(key, request);
     const id = (inferenceIds.get(key) ?? 0) + 1;
     inferenceIds.set(key, id);
     if (currentKey() === key) {
-      inferredScores({});
       inferring(true);
     }
     inferTagScores(title, body, tagList)
       .then((scores) => {
         if (inferenceIds.get(key) !== id) return;
-        inferredText.set(key, text);
-        inferredTags.set(key, tagSignature);
-        scoresByNote.set(key, scores);
-        if (currentKey() === key) inferredScores(scores);
+        document.dispatchEvent(
+          new CustomEvent("tagmemo:inference", {
+            detail: {
+              key,
+              id,
+              scores: { ...scores, ...request.overrides },
+              text,
+            },
+          }),
+        );
       })
-      .catch((error) => {
-        if (request.reportError && inferenceIds.get(key) === id && currentKey() === key)
-          status(error?.message ?? "タグの推定に失敗しました");
+      .catch(() => {
+        document.dispatchEvent(new CustomEvent("tagmemo:inference", { detail: { key, id } }));
       })
       .finally(() => {
         if (pendingInference.get(key) === request) pendingInference.delete(key);
-        if (inferenceIds.get(key) === id && currentKey() === key) inferring(false);
       });
   }
   function activateNote(id, force = false) {
@@ -327,12 +303,8 @@ export function App() {
       draftNew(null);
       selectedId(id);
       activeTitle(note.title);
-      tagStates(note.tagStates ?? []);
-      if (drawerOpen()) inferCurrentTags(note, false);
-      else {
-        inferredScores({});
-        inferring(false);
-      }
+      tagScores(note.tagScores);
+      inferring(pendingInference.has(id));
       accountOpen(false);
     }
   }
@@ -353,13 +325,12 @@ export function App() {
   function newMemo() {
     if (dirty()) save();
     editorState.draftSerial++;
-    inferredScores({});
     inferring(false);
-    const note = emptyDraft();
+    const note = emptyDraft(tags());
     draftNew(note);
     selectedId("");
     activeTitle("");
-    tagStates([]);
+    tagScores(note.tagScores);
     libraryOpen(false);
     drawerOpen(false);
     editorState.suppressScrollUntil = performance.now() + 650;
@@ -381,25 +352,27 @@ export function App() {
     clearTimeout(editorState.timer);
     editorState.timer = setTimeout(save, 650);
   }
-  function setTagState(tag, state) {
+  function applyInferredScores(scores) {
+    const next = updateTagScores(tagScores(), tags(), scores);
+    if (next !== tagScores()) applyTagScores(next);
+    else markDirty();
+  }
+  function setTagScore(tag, score) {
+    if (!currentNote()) return;
+    const pending = pendingInference.get(currentKey());
+    if (pending) pending.overrides[tag.id] = score;
+    const next = updateTagScores(tagScores(), tags(), { [tag.id]: score });
+    if (next !== tagScores()) applyTagScores(next);
+  }
+  function applyTagScores(next) {
     const note = currentNote();
     if (!note) return;
-    const next = [
-      ...tagStates().filter((item) => item.id !== tag.id),
-      { id: tag.id, state, score: state === "on" ? 1 : state === "off" ? 0 : (tag.score ?? 0.5) },
-    ];
-    const ids = next.filter(isDisplayedTag).map((item) => item.id);
-    const labels = tags()
-      .filter((item) => ids.includes(item.id))
-      .map((item) => ({ id: item.id, name: item.name }));
-    tagStates(next);
-    if (draftNew()) draftNew({ ...draftNew(), tagStates: next, tagIds: ids, tagLabels: labels });
-    else
-      notes(
-        notes().map((item) =>
-          item.id === note.id ? { ...item, tagStates: next, tagIds: ids, tagLabels: labels } : item,
-        ),
-      );
+    const labels = tagCandidates({ tagScores: next }, tags())
+      .filter(isDisplayedTag)
+      .map((tag) => ({ id: tag.id, name: tag.name }));
+    tagScores(next);
+    if (draftNew()) draftNew({ ...draftNew(), tagScores: next, tagLabels: labels });
+    else notes(keepEditedNote(notes(), note.id, editorState.current.get(), next, tags()));
     markDirty();
   }
   function save() {
@@ -417,25 +390,18 @@ export function App() {
       const draft = draftNew();
       const existing = draft ? null : notes().find((note) => note.id === selectedId());
       const key = existing?.id || `draft:${editorState.draftSerial}`;
-      const baseline = inferredText.get(key) ?? `${currentNote().title}\n${currentNote().body}`;
-      inferredText.set(key, baseline);
+      const baseline = inferredText.get(key) ?? existing?.inferredText;
       const savedText = `${title}\n${value.text}`;
-      const states = [...tagStates()];
-      const ids = states.filter(isDisplayedTag).map((item) => item.id);
+      const scores = tagScores();
       dirty(false);
       busy(true);
       status("");
-      saveMemo(existing, title, writeMemoBody(value.text, value.html), ids, states)
+      saveMemo(existing, title, writeMemoBody(value.text, value.html), scores, baseline)
         .then((id) => {
           if (draft) {
-            inferredText.set(id, inferredText.get(key) ?? baseline);
-            const cached = scoresByNote.get(key);
-            if (cached) scoresByNote.set(id, cached);
-            const signature = inferredTags.get(key);
-            if (signature) inferredTags.set(id, signature);
+            const inferred = inferredText.get(key);
+            if (inferred !== undefined) inferredText.set(id, inferred);
             inferredText.delete(key);
-            inferredTags.delete(key);
-            scoresByNote.delete(key);
             inferenceIds.delete(key);
             pendingInference.delete(key);
           }
@@ -449,13 +415,10 @@ export function App() {
               applyData(data);
               busy(false);
               if (
-                changedCharacters(
-                  inferredText.get(id) ?? baseline,
-                  savedText,
-                  inferenceThreshold,
-                ) >= inferenceThreshold
+                (value.text.trim() || (value.title.trim() && value.title.trim() !== "無題")) &&
+                shouldInferTags(inferredText.get(id) ?? baseline, savedText)
               )
-                requestTagInference(id, title, value.text, false);
+                requestAnimationFrame(() => requestTagInference(id, title, value.text));
             })
             .catch((error) => {
               dirty(true);

@@ -9,6 +9,7 @@ catalog:
   "@cfworker/json-schema": ^4.1.1
   "@cloudflare/vite-plugin": ^1.60.1
   "@libsql/client": ^0.18.0
+  '@mizchi/vlmkit': 0.23.0
   "@modelcontextprotocol/server": ^2.1.0
   "@tailwindcss/vite": ^4.3.3
   "@types/node": ^24
